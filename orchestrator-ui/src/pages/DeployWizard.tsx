@@ -330,23 +330,18 @@ export function DeployWizard() {
   useEffect(() => {
     if (subscriptions.length === 0) return;
     if (usingMock) {
-      // Use mock capacities in mock mode
+      // Use mock capacities in mock mode — leave selection blank so the user picks explicitly.
       const mockCaps = getMockCapacities() as FabricCapacity[];
       setCapacities(mockCaps);
-      const active = mockCaps.find((c) => c.state === "Active");
-      if (active && !selectedCapacity) setSelectedCapacity(getCapacitySelectionValue(active));
       setLoadWarning("");
       setInitializing(false);
       return;
     }
-    // Seed from the app-wide prefetch if available, then refresh in background
+    // Seed from the app-wide prefetch if available, then refresh in background.
+    // Do NOT auto-select a capacity — the user must choose one explicitly so this
+    // UI is safe to use across multiple users / tenants without leaking a default.
     if (ctxCapacities.length > 0 && capacities.length === 0) {
       setCapacities(ctxCapacities);
-      if (!selectedCapacity) {
-        const active = ctxCapacities.find((c) => c.state === "Active");
-        if (active) setSelectedCapacity(getCapacitySelectionValue(active));
-        else setSelectedCapacity(getCapacitySelectionValue(ctxCapacities[0]));
-      }
       setLoadWarning("");
       setInitializing(false);
     }
@@ -355,11 +350,6 @@ export function DeployWizard() {
     listCapacities()
       .then((allCaps) => {
         setCapacities(allCaps);
-        if (!selectedCapacity) {
-          const active = allCaps.find((c) => c.state === "Active");
-          if (active) setSelectedCapacity(getCapacitySelectionValue(active));
-          else if (allCaps.length > 0) setSelectedCapacity(getCapacitySelectionValue(allCaps[0]));
-        }
         if (allCaps.length === 0) {
           setLoadWarning("Unable to load Fabric capacities right now.");
         } else {
