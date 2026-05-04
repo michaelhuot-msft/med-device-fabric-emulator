@@ -540,17 +540,24 @@ async def _run_teardown(instance_id: str, req: TeardownRequest):
         if req.resource_group_name and req.delete_azure_rg:
             add_phase("Azure Resource Group")
             try:
-                proc = _az_run([
+                # NOTE: _az_run() uses blocking subprocess.run(). Run it in a
+                # thread pool so the asyncio event loop is not blocked while
+                # multiple concurrent teardowns poll az.
+                loop = asyncio.get_event_loop()
+                proc = await loop.run_in_executor(None, lambda: _az_run([
                     "az", "group", "delete",
                     "--name", req.resource_group_name,
                     "--yes", "--no-wait",
-                ])
+                ]))
                 if proc.returncode != 0:
                     raise RuntimeError(proc.stderr.strip() or "az group delete failed")
                 log("info", f"Azure RG deletion initiated for '{req.resource_group_name}' (async)")
 
                 for poll_attempt in range(120):  # up to ~10 min
-                    check = _az_run(["az", "group", "exists", "--name", req.resource_group_name])
+                    check = await loop.run_in_executor(
+                        None,
+                        lambda: _az_run(["az", "group", "exists", "--name", req.resource_group_name]),
+                    )
                     if check.stdout.strip().lower() == "false":
                         log("success", f"✓ Azure RG '{req.resource_group_name}' fully deleted")
                         complete_phase("Azure Resource Group")
@@ -602,7 +609,9 @@ async def _run_teardown(instance_id: str, req: TeardownRequest):
             "resources": {},
         }
     finally:
-        _logging.getLogger("activities.invoke_powershell").removeHandler(handler)
+        # Note: teardown does not attach a per-instance log handler the way
+        # _run_deploy does, so there is nothing to remove here. Just persist
+        # the final timestamp + state.
         deployment["lastUpdatedTime"] = now_iso()
         save_state()
 
