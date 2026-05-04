@@ -188,10 +188,76 @@ export function DeployWizard() {
   const [resumingCapacity, setResumingCapacity] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [existingDeployCollapsed, setExistingDeployCollapsed] = useState(false);
-  const [showSummary, setShowSummary] = useState(true);
+  const [showSummary] = useState(true);
   const [initializing, setInitializing] = useState(true);
   const [loadWarning, setLoadWarning] = useState("");
   const [ahdsRegions, setAhdsRegions] = useState<string[] | null>(null); // null = not loaded yet
+
+  const getCapacitySelectionValue = (capacity: FabricCapacity) => {
+    return capacity.id || `${capacity.subscription}:${capacity.resourceGroup}:${capacity.name}`;
+  };
+
+  const getShortSubscriptionId = (subscriptionId?: string) => {
+    if (!subscriptionId) return "";
+    return subscriptionId.slice(0, 8);
+  };
+
+  const getCapacityFallbackParts = (value: string) => {
+    if (!value) return null;
+    if (value.startsWith("/subscriptions/")) {
+      const segments = value.split("/").filter(Boolean);
+      const subscriptionId = segments[1] ?? "";
+      const capacityName = segments[segments.length - 1] ?? value;
+      return { capacityName, subscriptionId, subscriptionName: "" };
+    }
+    const parts = value.split(":");
+    if (parts.length >= 3) {
+      return {
+        subscriptionId: parts[0],
+        subscriptionName: "",
+        capacityName: parts[2],
+      };
+    }
+    return {
+      subscriptionId: "",
+      subscriptionName: "",
+      capacityName: value,
+    };
+  };
+
+  const formatSubscriptionReference = (subscriptionName?: string, subscriptionId?: string) => {
+    const shortId = getShortSubscriptionId(subscriptionId);
+    if (subscriptionName && shortId) return `${subscriptionName} (${shortId})`;
+    if (subscriptionName) return subscriptionName;
+    if (shortId) return `Sub ${shortId}`;
+    return "";
+  };
+
+  const formatCapacityMenuLabel = (capacity: FabricCapacity) => {
+    const subscriptionLabel = formatSubscriptionReference(capacity.subscriptionName, capacity.subscription);
+    const suffix = subscriptionLabel ? ` • ${subscriptionLabel}` : "";
+    return `${capacity.name} — ${capacity.sku} (${capacity.state ?? "Unknown"})${suffix}`;
+  };
+
+  const formatSelectedCapacityLabel = (value: string) => {
+    const capacity = findCapacity(value);
+    if (capacity) {
+      const subscriptionLabel = formatSubscriptionReference(capacity.subscriptionName, capacity.subscription);
+      return subscriptionLabel ? `${capacity.name} (${subscriptionLabel})` : capacity.name;
+    }
+
+    const fallback = getCapacityFallbackParts(value);
+    if (!fallback) return "";
+    const subscriptionLabel = formatSubscriptionReference(fallback.subscriptionName, fallback.subscriptionId);
+    return subscriptionLabel ? `${fallback.capacityName} (${subscriptionLabel})` : fallback.capacityName;
+  };
+
+  const findCapacity = (value: string) => {
+    return capacities.find((capacity) => {
+      const selectionValue = getCapacitySelectionValue(capacity);
+      return selectionValue === value || capacity.name === value;
+    });
+  };
 
   const refreshCapacities = () => {
     if (subscriptions.length === 0) return;
@@ -200,21 +266,36 @@ export function DeployWizard() {
       setCapacities((prev) => prev.map((c) =>
         c.state === "Resuming" ? { ...c, state: "Active" } : c
       ));
+      setLoadWarning("");
       return;
     }
     setCapacityRefreshing(true);
-    Promise.all(subscriptions.map((s) => listCapacities(s.id)))
-      .then((results) => {
-        const allCaps = results.flat();
+    listCapacities()
+      .then((allCaps) => {
         setCapacities(allCaps);
         // Update selected capacity state if it still exists
         if (selectedCapacity) {
-          const updated = allCaps.find((c) => c.name === selectedCapacity);
-          if (!updated) setSelectedCapacity("");
+          const updated = allCaps.find((capacity) => {
+            const selectionValue = getCapacitySelectionValue(capacity);
+            return selectionValue === selectedCapacity || capacity.name === selectedCapacity;
+          });
+          if (updated && selectedCapacity !== getCapacitySelectionValue(updated)) {
+            setSelectedCapacity(getCapacitySelectionValue(updated));
+          } else if (!updated) {
+            setSelectedCapacity("");
+          }
+        }
+        if (allCaps.length === 0) {
+          setError("Unable to load Fabric capacities right now.");
+          setLoadWarning("Unable to load Fabric capacities right now.");
+        } else {
+          setError("");
+          setLoadWarning("");
         }
       })
       .catch(() => {
         setError("Failed to refresh capacity state. Try again.");
+        setLoadWarning("Unable to load Fabric capacities right now.");
       })
       .finally(() => setCapacityRefreshing(false));
   };
@@ -233,6 +314,7 @@ export function DeployWizard() {
         if (subs.length > 0) {
           setSubscriptions(subs);
           setUsingMock(false);
+          setLoadWarning("");
           if (!selectedSubscription) {
             setSelectedSubscription(subs[0].id);
           }
@@ -252,7 +334,8 @@ export function DeployWizard() {
       const mockCaps = getMockCapacities() as FabricCapacity[];
       setCapacities(mockCaps);
       const active = mockCaps.find((c) => c.state === "Active");
-      if (active && !selectedCapacity) setSelectedCapacity(active.name);
+      if (active && !selectedCapacity) setSelectedCapacity(getCapacitySelectionValue(active));
+      setLoadWarning("");
       setInitializing(false);
       return;
     }
@@ -261,21 +344,26 @@ export function DeployWizard() {
       setCapacities(ctxCapacities);
       if (!selectedCapacity) {
         const active = ctxCapacities.find((c) => c.state === "Active");
-        if (active) setSelectedCapacity(active.name);
-        else setSelectedCapacity(ctxCapacities[0].name);
+        if (active) setSelectedCapacity(getCapacitySelectionValue(active));
+        else setSelectedCapacity(getCapacitySelectionValue(ctxCapacities[0]));
       }
+      setLoadWarning("");
       setInitializing(false);
     }
     setCapacityRefreshing(true);
-    // Scan all subscriptions since capacity may be in a different sub
-    Promise.all(subscriptions.map((s) => listCapacities(s.id)))
-      .then((results) => {
-        const allCaps = results.flat();
+    // Scan all accessible subscriptions since the capacity may live outside the currently selected Azure context.
+    listCapacities()
+      .then((allCaps) => {
         setCapacities(allCaps);
         if (!selectedCapacity) {
           const active = allCaps.find((c) => c.state === "Active");
-          if (active) setSelectedCapacity(active.name);
-          else if (allCaps.length > 0) setSelectedCapacity(allCaps[0].name);
+          if (active) setSelectedCapacity(getCapacitySelectionValue(active));
+          else if (allCaps.length > 0) setSelectedCapacity(getCapacitySelectionValue(allCaps[0]));
+        }
+        if (allCaps.length === 0) {
+          setLoadWarning("Unable to load Fabric capacities right now.");
+        } else {
+          setLoadWarning("");
         }
       })
       .catch(() => {
@@ -329,6 +417,7 @@ export function DeployWizard() {
     skip_imaging: false,
     skip_ontology: false,
     skip_activator: false,
+    skip_quality_measures: false,
   });
 
   const [useNamingConvention, setUseNamingConvention] = useState(true);
@@ -346,6 +435,7 @@ export function DeployWizard() {
     : !useNamingConvention && (!config.resource_group_name || !config.fabric_workspace_name) ? 1
     : !selectedCapacity || !config.admin_security_group ? 1
     : !config.fabric_workspace_name && !useNamingConvention ? 2
+    : !config.patient_count || !config.alert_email?.trim() ? 3
     : -1; // all filled — no glow
 
   // Calculate completion status for cards
@@ -493,7 +583,7 @@ export function DeployWizard() {
             }
           }
         })
-        .catch((err) => {
+        .catch(() => {
           if (!abortController.signal.aborted) setExistingDeploy(null);
         })
         .finally(() => {
@@ -578,12 +668,13 @@ export function DeployWizard() {
         addTagToHistory(config.tags);
       }
       // Inject capacity fields from state
-      const cap = capacities.find((c) => c.name === selectedCapacity);
+      const cap = findCapacity(selectedCapacity);
+      const fallbackCapacity = getCapacityFallbackParts(selectedCapacity);
       const deployConfig: DeploymentConfig = {
         ...config,
-        capacity_name: selectedCapacity,
-        capacity_resource_group: cap?.resourceGroup ?? "",
-        capacity_subscription_id: cap?.subscription ?? selectedSubscription,
+        capacity_name: cap?.name ?? fallbackCapacity?.capacityName ?? selectedCapacity,
+        capacity_resource_group: cap?.resourceGroup ?? config.capacity_resource_group ?? "",
+        capacity_subscription_id: cap?.subscription ?? fallbackCapacity?.subscriptionId ?? selectedSubscription,
         pause_capacity_after_deploy: pauseAfterDeploy,
       };
       const { instanceId } = await startDeployment(deployConfig);
@@ -637,6 +728,22 @@ export function DeployWizard() {
   ]);
 
   const canStartDeployment = validationErrors.length === 0 && !loading;
+
+  useEffect(() => {
+    if (!error) return;
+    setError("");
+  }, [
+    selectedSubscription,
+    selectedCapacity,
+    config.admin_security_group,
+    config.resource_group_name,
+    config.fabric_workspace_name,
+    config.alert_email,
+    config.patient_count,
+    config.location,
+    useNamingConvention,
+    namingPrefix,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ display: "flex", gap: "24px", position: "relative" }}>
@@ -948,22 +1055,21 @@ export function DeployWizard() {
                   <Dropdown
                     style={{ flex: 1 }}
                     value={
-                      capacityRefreshing
-                        ? "Refreshing capacity status…"
-                        : selectedCapacity
-                          ? (() => {
-                              const cap = capacities.find((c) => c.name === selectedCapacity);
-                              return cap ? `${cap.name} — ${cap.sku} (${cap.state ?? "Unknown"})` : selectedCapacity;
-                            })()
+                      selectedCapacity
+                        ? (() => {
+                            return formatSelectedCapacityLabel(selectedCapacity);
+                          })()
+                        : capacityRefreshing
+                          ? "Refreshing capacity status..."
                           : capacities.length === 0 ? "No capacities found" : "Select…"
                     }
                     selectedOptions={selectedCapacity ? [selectedCapacity] : []}
                     onOptionSelect={(_, data) => setSelectedCapacity(data.optionValue as string)}
-                    disabled={capacities.length === 0 || capacityRefreshing}
+                    disabled={capacities.length === 0 && capacityRefreshing}
                   >
                     {capacities.map((c) => (
-                      <Option key={c.name} value={c.name} text={`${c.name} — ${c.sku} (${c.state ?? "Unknown"})`}>
-                        {c.name} — {c.sku} ({c.state ?? "Unknown"})
+                      <Option key={getCapacitySelectionValue(c)} value={getCapacitySelectionValue(c)} text={formatCapacityMenuLabel(c)}>
+                        {formatCapacityMenuLabel(c)}
                       </Option>
                     ))}
                   </Dropdown>
@@ -978,7 +1084,7 @@ export function DeployWizard() {
                     />
                   </Tooltip>
                   {(() => {
-                    const cap = capacities.find((c) => c.name === selectedCapacity);
+                    const cap = findCapacity(selectedCapacity);
                     if (!cap) return null;
                     const isActive = cap.state === "Active";
                     const isPaused = cap.state === "Paused" || cap.state === "Suspended";
@@ -1258,7 +1364,7 @@ export function DeployWizard() {
               <Checkbox
                 checked={pauseAfterDeploy}
                 onChange={(_, d) => setPauseAfterDeploy(!!d.checked)}
-                label={`Pause capacity "${selectedCapacity}" after successful deployment`}
+                label={`Pause capacity "${formatSelectedCapacityLabel(selectedCapacity)}" after successful deployment`}
               />
             )}
           </div>
@@ -1276,7 +1382,7 @@ export function DeployWizard() {
                   return complete === total ? (
                     <Badge color="success" size="small" icon={<CheckmarkCircleRegular />}>Complete</Badge>
                   ) : (
-                    <Badge color="error" size="small">Required</Badge>
+                    <Badge color="danger" size="small">Required</Badge>
                   );
                 })()}
               </div>
@@ -1564,6 +1670,18 @@ export function DeployWizard() {
                 disabled={config.skip_fabric || !config.alert_email}
               />
             </Tooltip>
+
+            {/* ── Phase 5: CMS Quality & Claims ── */}
+            <Text weight="semibold" size={300} style={{ marginTop: tokens.spacingVerticalM, color: tokens.colorBrandForeground1 }}>
+              Phase 5: CMS Quality &amp; Claims
+            </Text>
+            <Tooltip content="Skip CMS Quality Scorecard — claims materialization, quality measures computation, and Power BI report" relationship="description" positioning="after">
+              <Checkbox
+                label="CMS Quality Scorecard (Claims + Measures + Report)"
+                checked={!config.skip_quality_measures}
+                onChange={(_, d) => update("skip_quality_measures", !d.checked)}
+              />
+            </Tooltip>
           </div>
         </Card>
 
@@ -1646,7 +1764,7 @@ export function DeployWizard() {
               <div>
                 <Text size={200} weight="semibold" block>Capacity</Text>
                 <Text size={200} block style={{ color: tokens.colorNeutralForeground2 }}>
-                  {selectedCapacity || "<not selected>"}
+                  {selectedCapacity ? formatSelectedCapacityLabel(selectedCapacity) : "<not selected>"}
                 </Text>
               </div>
               <div>

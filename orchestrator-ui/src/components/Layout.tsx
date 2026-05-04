@@ -1,11 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  Button,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
+  Badge,
   Tab,
   TabList,
   Text,
@@ -13,12 +8,12 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import {
-  MoreHorizontalRegular,
   RocketRegular,
   HistoryRegular,
   DeleteRegular,
 } from "@fluentui/react-icons";
 import { spacing } from "../theme";
+import { useAppState } from "../AppState";
 import {
   AzureIcon,
   FabricIcon,
@@ -39,9 +34,6 @@ const useStyles = makeStyles({
     backgroundRepeat: "no-repeat",
     backgroundAttachment: "fixed",
     backgroundColor: tokens.colorNeutralBackground2,
-    "@media (max-width: 900px)": {
-      backgroundAttachment: "scroll",
-    },
   },
   header: {
     display: "flex",
@@ -53,14 +45,6 @@ const useStyles = makeStyles({
     paddingRight: spacing.xxl,
     backgroundColor: tokens.colorNeutralBackground1,
     borderBottom: `2px solid ${tokens.colorBrandForeground1}`,
-    "@media (max-width: 1200px)": {
-      paddingLeft: spacing.l,
-      paddingRight: spacing.l,
-      gap: spacing.s,
-    },
-    "@media (max-width: 760px)": {
-      flexWrap: "wrap",
-    },
   },
   headerLeft: {
     display: "flex",
@@ -79,9 +63,6 @@ const useStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase500,
     lineHeight: tokens.lineHeightBase500,
-    "@media (max-width: 980px)": {
-      display: "none",
-    },
   },
   brandAccent: {
     color: tokens.colorBrandForeground1,
@@ -93,16 +74,6 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     gap: spacing.s,
-    "@media (max-width: 1200px)": {
-      display: "none",
-    },
-  },
-  headerQuickMenu: {
-    display: "none",
-    "@media (max-width: 1200px)": {
-      display: "inline-flex",
-      marginLeft: "auto",
-    },
   },
   iconPill: {
     display: "inline-flex",
@@ -138,11 +109,64 @@ const useStyles = makeStyles({
     paddingRight: spacing.xxl,
     backgroundColor: tokens.colorNeutralBackground1,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    overflowX: "auto",
-    "@media (max-width: 1200px)": {
-      paddingLeft: spacing.l,
-      paddingRight: spacing.l,
-    },
+  },
+  navInner: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.s,
+    flexWrap: "wrap",
+    minHeight: "48px",
+  },
+  contextStrip: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: tokens.spacingHorizontalXS,
+    flexWrap: "wrap",
+    paddingTop: tokens.spacingVerticalXXS,
+    paddingBottom: tokens.spacingVerticalXXS,
+  },
+  contextPill: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1px",
+    minWidth: "124px",
+    maxWidth: "220px",
+    padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`,
+    borderRadius: tokens.borderRadiusSmall,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  contextTitle: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    lineHeight: "12px",
+  },
+  contextValue: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase100,
+    fontWeight: tokens.fontWeightSemibold,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+    lineHeight: "14px",
+    maxHeight: "28px",
+  },
+  contextSubtext: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: "11px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+    lineHeight: "13px",
+    maxHeight: "26px",
   },
   content: {
     flex: 1,
@@ -150,9 +174,6 @@ const useStyles = makeStyles({
     maxWidth: "1200px",
     margin: "0 auto",
     width: "100%",
-    "@media (max-width: 1200px)": {
-      padding: spacing.l,
-    },
   },
   footer: {
     display: "flex",
@@ -186,6 +207,26 @@ export function Layout() {
   const styles = useStyles();
   const navigate = useNavigate();
   const location = useLocation();
+  const { selectedSubscription, subscriptions, authContext, authContextLoading } = useAppState();
+
+  const selectedSubscriptionInfo = subscriptions.find((subscription) => subscription.id === selectedSubscription);
+  const selectedSubscriptionLabel =
+    selectedSubscriptionInfo?.name || authContext?.cli.subscriptionName || authContext?.pwsh.subscriptionName || "Not selected";
+  const selectedSubscriptionId =
+    selectedSubscriptionInfo?.id || authContext?.cli.subscriptionId || authContext?.pwsh.subscriptionId || "";
+  const selectedSubscriptionShortId = selectedSubscriptionId ? selectedSubscriptionId.slice(0, 8) : "";
+  const cliLabel = authContextLoading
+    ? "Checking Azure CLI..."
+    : authContext?.cli.loggedIn
+      ? authContext.cli.user
+      : authContext?.cli.error || "Not logged in";
+  const pwshLabel = authContextLoading
+    ? "Checking Az PowerShell..."
+    : authContext?.pwsh.loggedIn
+      ? authContext.pwsh.user
+      : authContext?.pwsh.error || "Not logged in";
+  const contextReady = !!authContext?.ready;
+  const contextAligned = !!authContext?.aligned.subscription && !!authContext?.aligned.tenant;
 
   const currentTab =
     location.pathname.startsWith("/monitor")
@@ -259,39 +300,55 @@ export function Layout() {
             <YouTubeIcon size={16} /> Demo
           </a>
         </div>
-        <div className={styles.headerQuickMenu}>
-          <Menu>
-            <MenuTrigger disableButtonEnhancement>
-              <Button appearance="subtle" icon={<MoreHorizontalRegular />} aria-label="Open quick links" />
-            </MenuTrigger>
-            <MenuPopover>
-              <MenuList>
-                <MenuItem onClick={() => window.open("https://learn.microsoft.com/en-us/industry/healthcare/healthcare-data-solutions/overview", "_blank", "noopener,noreferrer")}>Healthcare Data Solutions</MenuItem>
-                <MenuItem onClick={() => window.open("https://portal.azure.com", "_blank", "noopener,noreferrer")}>Azure Portal</MenuItem>
-                <MenuItem onClick={() => window.open("https://app.fabric.microsoft.com/home?experience=fabric-developer", "_blank", "noopener,noreferrer")}>Microsoft Fabric</MenuItem>
-                <MenuItem onClick={() => window.open("https://github.com/kfprugger/med-device-fabric-emulator", "_blank", "noopener,noreferrer")}>GitHub</MenuItem>
-                <MenuItem onClick={() => window.open("https://aka.ms/fabrichlsrti", "_blank", "noopener,noreferrer")}>Demo Video</MenuItem>
-              </MenuList>
-            </MenuPopover>
-          </Menu>
-        </div>
       </div>
 
       <div className={styles.nav}>
-        <TabList
-          selectedValue={currentTab}
-          onTabSelect={(_, data) => navigate(data.value as string)}
-        >
-          <Tab value="/deploy" icon={<RocketRegular />}>
-            Deploy
-          </Tab>
-          <Tab value="/history" icon={<HistoryRegular />}>
-            History
-          </Tab>
-          <Tab value="/teardown" icon={<DeleteRegular />}>
-            Teardown
-          </Tab>
-        </TabList>
+        <div className={styles.navInner}>
+          <TabList
+            selectedValue={currentTab}
+            onTabSelect={(_, data) => navigate(data.value as string)}
+          >
+            <Tab value="/deploy" icon={<RocketRegular />}>
+              Deploy
+            </Tab>
+            <Tab value="/history" icon={<HistoryRegular />}>
+              History
+            </Tab>
+            <Tab value="/teardown" icon={<DeleteRegular />}>
+              Teardown
+            </Tab>
+          </TabList>
+
+          <div className={styles.contextStrip}>
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Selected Subscription</Text>
+              <Text className={styles.contextValue}>{selectedSubscriptionLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {selectedSubscriptionId || "No subscription selected"}
+              </Text>
+            </div>
+
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Azure CLI</Text>
+              <Text className={styles.contextValue}>{cliLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {authContext?.cli.subscriptionName || (selectedSubscriptionShortId ? `Sub ${selectedSubscriptionShortId}` : "No active context")}
+              </Text>
+            </div>
+
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Az PowerShell</Text>
+              <Text className={styles.contextValue}>{pwshLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {authContext?.pwsh.subscriptionName || (selectedSubscriptionShortId ? `Sub ${selectedSubscriptionShortId}` : "No active context")}
+              </Text>
+            </div>
+
+            <Badge size="small" color={contextReady && contextAligned ? "success" : authContextLoading ? "informative" : "warning"}>
+              {authContextLoading ? "Checking context" : contextReady && contextAligned ? "Contexts aligned" : "Context needs attention"}
+            </Badge>
+          </div>
+        </div>
       </div>
 
       <div className={styles.content}>

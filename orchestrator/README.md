@@ -5,6 +5,11 @@ The orchestrator provides a visual deployment experience for the Medical Device 
 ## Quick Start
 
 > **Prerequisites are required for both the Orchestrator UI and command-line (`Deploy-All.ps1`) deployments.** The setup script detects your OS (Windows, macOS, Linux) and provides platform-specific install commands for anything that's missing.
+>
+> **Authentication requirement (mandatory):** The local machine must be logged in to both Azure toolchains before deployment:
+> - `az login`
+> - `Connect-AzAccount`
+> - Both must point to the same subscription/tenant context.
 
 From the repo root, run the setup script to install all prerequisites:
 

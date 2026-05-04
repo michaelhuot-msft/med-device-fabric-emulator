@@ -26,6 +26,26 @@ Write-Host ""
 $failures = @()
 $warnings = @()
 $checks = @()
+$azCliAccount = $null
+$azPsContext = $null
+
+# 0. Host architecture visibility
+try {
+    $hostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    $procArch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+    if ($hostArch -eq "Arm64" -and $procArch -ne "Arm64") {
+        $checks += @{ name = "Architecture"; status = "warn"; detail = "Host=$hostArch, PowerShell=$procArch (emulation)" }
+        $warnings += "ARM64 host detected but PowerShell is running as $procArch. Use native ARM64 tooling where possible for better performance."
+        Write-Host "  ⚠ Architecture: Host=$hostArch, PowerShell=$procArch (emulation)" -ForegroundColor Yellow
+    } else {
+        $checks += @{ name = "Architecture"; status = "pass"; detail = "Host=$hostArch, PowerShell=$procArch" }
+        Write-Host "  ✓ Architecture: Host=$hostArch, PowerShell=$procArch" -ForegroundColor Green
+    }
+} catch {
+    $checks += @{ name = "Architecture"; status = "warn"; detail = "Unable to detect" }
+    $warnings += "Could not detect host/process architecture."
+    Write-Host "  ⚠ Architecture: Unable to detect" -ForegroundColor Yellow
+}
 
 # 1. PowerShell version (7+)
 if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -79,22 +99,121 @@ try {
 
 # 5. Azure login
 try {
-    $account = az account show --output json 2>$null | ConvertFrom-Json
-    if ($account.id) {
-        $checks += @{ name = "Azure Login"; status = "pass"; detail = "$($account.name) ($($account.id.Substring(0,8))...)" }
-        Write-Host "  ✓ Azure login: $($account.name)" -ForegroundColor Green
+    $azCliAccount = az account show --output json 2>$null | ConvertFrom-Json
+    if ($azCliAccount.id) {
+        $checks += @{ name = "Azure CLI Login"; status = "pass"; detail = "$($azCliAccount.name) ($($azCliAccount.id.Substring(0,8))...)" }
+        Write-Host "  ✓ Azure CLI login: $($azCliAccount.name)" -ForegroundColor Green
     } else {
-        $checks += @{ name = "Azure Login"; status = "fail"; detail = "Not logged in" }
-        $failures += "Not logged in to Azure. Run: az login"
-        Write-Host "  ✗ Not logged in to Azure" -ForegroundColor Red
+        $checks += @{ name = "Azure CLI Login"; status = "fail"; detail = "Not logged in" }
+        $failures += "Not logged in to Azure CLI. Run: az login"
+        Write-Host "  ✗ Not logged in to Azure CLI" -ForegroundColor Red
     }
 } catch {
-    $checks += @{ name = "Azure Login"; status = "fail"; detail = "Not logged in" }
-    $failures += "Not logged in to Azure. Run: az login"
-    Write-Host "  ✗ Not logged in to Azure" -ForegroundColor Red
+    $checks += @{ name = "Azure CLI Login"; status = "fail"; detail = "Not logged in" }
+    $failures += "Not logged in to Azure CLI. Run: az login"
+    Write-Host "  ✗ Not logged in to Azure CLI" -ForegroundColor Red
 }
 
-# 6. Python 3.10+
+# 6. Az PowerShell login
+try {
+    $azPsContext = Get-AzContext -ErrorAction Stop
+    if ($azPsContext -and $azPsContext.Subscription -and $azPsContext.Subscription.Id) {
+        $checks += @{ name = "Az PowerShell Login"; status = "pass"; detail = "$($azPsContext.Subscription.Name) ($($azPsContext.Subscription.Id.Substring(0,8))...)" }
+        Write-Host "  ✓ Az PowerShell login: $($azPsContext.Subscription.Name)" -ForegroundColor Green
+    } else {
+        $checks += @{ name = "Az PowerShell Login"; status = "fail"; detail = "No active Az context" }
+        $failures += "Not logged in to Azure PowerShell. Run: Connect-AzAccount"
+        Write-Host "  ✗ Not logged in to Azure PowerShell" -ForegroundColor Red
+    }
+} catch {
+    $checks += @{ name = "Az PowerShell Login"; status = "fail"; detail = "No active Az context" }
+    $failures += "Not logged in to Azure PowerShell. Run: Connect-AzAccount"
+    Write-Host "  ✗ Not logged in to Azure PowerShell" -ForegroundColor Red
+}
+
+# 7. Account context alignment (Azure CLI vs Az PowerShell)
+if ($azCliAccount -and $azCliAccount.id -and $azPsContext -and $azPsContext.Subscription -and $azPsContext.Subscription.Id) {
+    $cliSub = "$($azCliAccount.id)".Trim().ToLower()
+    $psSub = "$($azPsContext.Subscription.Id)".Trim().ToLower()
+    $cliTenant = "$($azCliAccount.tenantId)".Trim().ToLower()
+    $psTenant = "$($azPsContext.Tenant.Id)".Trim().ToLower()
+
+    if ($cliSub -eq $psSub -and $cliTenant -eq $psTenant) {
+        $checks += @{ name = "Azure Context"; status = "pass"; detail = "Subscription and tenant aligned" }
+        Write-Host "  ✓ Azure context aligned (CLI + Az PowerShell)" -ForegroundColor Green
+    } else {
+        $checks += @{ name = "Azure Context"; status = "fail"; detail = "CLI/Az subscription or tenant mismatch" }
+        $failures += "Azure CLI and Az PowerShell contexts do not match. Align with: az account set -s <subscription> and Set-AzContext -Subscription <subscriptionId>"
+        Write-Host "  ✗ Azure context mismatch between CLI and Az PowerShell" -ForegroundColor Red
+        Write-Host "    CLI sub/tenant: $cliSub / $cliTenant" -ForegroundColor DarkGray
+        Write-Host "    Az  sub/tenant: $psSub / $psTenant" -ForegroundColor DarkGray
+    }
+} else {
+    $checks += @{ name = "Azure Context"; status = "fail"; detail = "Cannot compare CLI/Az contexts" }
+    $failures += "Cannot validate Azure account context because one or both login contexts are missing."
+    Write-Host "  ✗ Could not validate Azure context alignment" -ForegroundColor Red
+}
+
+# 8. Required Azure control-plane access
+if ($azCliAccount -and $azCliAccount.id) {
+    try {
+        $subInfo = az rest --method get --url "https://management.azure.com/subscriptions/$($azCliAccount.id)?api-version=2022-12-01" -o json 2>$null | ConvertFrom-Json
+        if ($subInfo.subscriptionId) {
+            $checks += @{ name = "ARM Access"; status = "pass"; detail = "Can read subscription metadata" }
+            Write-Host "  ✓ ARM access: subscription metadata readable" -ForegroundColor Green
+        } else {
+            $checks += @{ name = "ARM Access"; status = "fail"; detail = "Subscription metadata unreadable" }
+            $failures += "Cannot read Azure subscription metadata via ARM. Ensure account has at least Reader access."
+            Write-Host "  ✗ ARM access check failed" -ForegroundColor Red
+        }
+    } catch {
+        $checks += @{ name = "ARM Access"; status = "fail"; detail = "Subscription metadata unreadable" }
+        $failures += "Cannot read Azure subscription metadata via ARM. Ensure account has at least Reader access."
+        Write-Host "  ✗ ARM access check failed" -ForegroundColor Red
+    }
+
+    try {
+        $requiredProviders = @(
+            "Microsoft.Resources",
+            "Microsoft.KeyVault",
+            "Microsoft.ContainerRegistry",
+            "Microsoft.EventHub",
+            "Microsoft.ContainerInstance",
+            "Microsoft.Storage",
+            "Microsoft.HealthcareApis"
+        )
+
+        $notRegistered = @()
+        foreach ($provider in $requiredProviders) {
+            $state = az provider show -n $provider --query registrationState -o tsv 2>$null
+            if (-not $state) {
+                $notRegistered += "$provider (unknown)"
+            } elseif ($state -ne "Registered") {
+                $notRegistered += "$provider ($state)"
+            }
+        }
+
+        if ($notRegistered.Count -eq 0) {
+            $checks += @{ name = "Resource Providers"; status = "pass"; detail = "All required providers registered" }
+            Write-Host "  ✓ Required resource providers registered" -ForegroundColor Green
+        } else {
+            $checks += @{ name = "Resource Providers"; status = "warn"; detail = ($notRegistered -join ", ") }
+            $warnings += "Some required Azure resource providers are not fully registered: $($notRegistered -join ', '). Register with: az provider register --namespace <provider>."
+            Write-Host "  ⚠ Resource provider registration incomplete" -ForegroundColor Yellow
+            Write-Host "    $($notRegistered -join ', ')" -ForegroundColor DarkGray
+        }
+    } catch {
+        $checks += @{ name = "Resource Providers"; status = "warn"; detail = "Unable to validate provider registration" }
+        $warnings += "Could not validate required Azure resource providers."
+        Write-Host "  ⚠ Could not validate resource provider registration" -ForegroundColor Yellow
+    }
+} else {
+    $checks += @{ name = "ARM Access"; status = "fail"; detail = "Skipped (no Azure CLI context)" }
+    $failures += "Cannot validate ARM access without Azure CLI login context."
+    Write-Host "  ✗ ARM access check skipped (no Azure CLI context)" -ForegroundColor Red
+}
+
+# 9. Python 3.10+
 try {
     $pyVer = python --version 2>&1
     if ($pyVer -match "(\d+)\.(\d+)\.(\d+)") {
@@ -114,7 +233,7 @@ try {
     Write-Host "  ⚠ Python not found (optional)" -ForegroundColor Yellow
 }
 
-# 7. Admin Security Group
+# 10. Admin Security Group
 if ($AdminSecurityGroup) {
     try {
         $grp = az ad group show --group $AdminSecurityGroup --query "id" -o tsv 2>$null
@@ -133,7 +252,7 @@ if ($AdminSecurityGroup) {
     }
 }
 
-# 8. Fabric capacity
+# 11. Fabric capacity
 try {
     $fabToken = (Get-AzAccessToken -ResourceUrl "https://api.fabric.microsoft.com").Token
     if ($fabToken -is [System.Security.SecureString]) {
