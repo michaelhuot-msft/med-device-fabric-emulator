@@ -23,7 +23,9 @@ chmod +x setup-prereqs.sh
 
 **Azure/Fabric:**
 - Azure subscription with permissions to create resource groups, Health Data Services, ACR, ACI, Storage, and Managed Identities
-- Logged in to Azure (`az login`)
+- Logged in to Azure CLI (`az login`)
+- Logged in to Azure PowerShell (`Connect-AzAccount`)
+- Azure CLI and Az PowerShell contexts aligned to the same subscription/tenant
 - Microsoft Fabric capacity (**paid F-SKU** such as F2 or F64 — trial capacities cannot deploy Healthcare Data Solutions)
 
 To check without installing anything: `.\setup-prereqs.ps1 -CheckOnly`

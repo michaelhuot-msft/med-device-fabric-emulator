@@ -196,6 +196,111 @@ def save_state():
         save_deployment(inst_id, dep)
 
 
+def _get_auth_context_sync() -> dict:
+    """Inspect local Azure CLI and Az PowerShell auth/tooling context."""
+    cli = {
+        "installed": False,
+        "loggedIn": False,
+        "user": "",
+        "subscriptionName": "",
+        "subscriptionId": "",
+        "tenantId": "",
+        "error": "",
+    }
+    pwsh = {
+        "installed": False,
+        "loggedIn": False,
+        "user": "",
+        "subscriptionName": "",
+        "subscriptionId": "",
+        "tenantId": "",
+        "error": "",
+    }
+
+    # Azure CLI context
+    try:
+        ver = _az_run(["az", "version", "-o", "json"])
+        cli["installed"] = ver.returncode == 0
+        if ver.returncode == 0:
+            acct = _az_run([
+                "az", "account", "show",
+                "--query", "{user:user.name, subscriptionName:name, subscriptionId:id, tenantId:tenantId}",
+                "-o", "json",
+            ])
+            if acct.returncode == 0 and acct.stdout.strip():
+                data = json.loads(acct.stdout)
+                cli["loggedIn"] = bool(data.get("subscriptionId"))
+                cli["user"] = data.get("user", "") or ""
+                cli["subscriptionName"] = data.get("subscriptionName", "") or ""
+                cli["subscriptionId"] = data.get("subscriptionId", "") or ""
+                cli["tenantId"] = data.get("tenantId", "") or ""
+            else:
+                cli["error"] = (acct.stderr or "Not logged in to Azure CLI").strip()[:400]
+        else:
+            cli["error"] = (ver.stderr or "Azure CLI not installed").strip()[:400]
+    except Exception as e:
+        cli["error"] = str(e)[:400]
+
+    # Az PowerShell context
+    ps_cmd = (
+        "$ErrorActionPreference='Stop'; "
+        "if (-not (Get-Module -ListAvailable -Name Az.Accounts)) { "
+        "  [PSCustomObject]@{installed=$false;loggedIn=$false;user='';subscriptionName='';subscriptionId='';tenantId='';error='Az.Accounts module not installed'} | ConvertTo-Json -Compress; exit 0 "
+        "}; "
+        "try { "
+        "  $ctx = Get-AzContext -ErrorAction Stop; "
+        "  if ($null -eq $ctx -or $null -eq $ctx.Subscription) { throw 'No active Az context' }; "
+        "  [PSCustomObject]@{installed=$true;loggedIn=$true;user=$ctx.Account.Id;subscriptionName=$ctx.Subscription.Name;subscriptionId=$ctx.Subscription.Id;tenantId=$ctx.Tenant.Id;error=''} | ConvertTo-Json -Compress "
+        "} catch { "
+        "  [PSCustomObject]@{installed=$true;loggedIn=$false;user='';subscriptionName='';subscriptionId='';tenantId='';error=$_.Exception.Message} | ConvertTo-Json -Compress "
+        "}"
+    )
+    try:
+        ps = _az_run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_cmd])
+        if ps.returncode == 0 and ps.stdout.strip():
+            data = json.loads(ps.stdout.strip())
+            pwsh["installed"] = bool(data.get("installed", False))
+            pwsh["loggedIn"] = bool(data.get("loggedIn", False))
+            pwsh["user"] = data.get("user", "") or ""
+            pwsh["subscriptionName"] = data.get("subscriptionName", "") or ""
+            pwsh["subscriptionId"] = data.get("subscriptionId", "") or ""
+            pwsh["tenantId"] = data.get("tenantId", "") or ""
+            pwsh["error"] = data.get("error", "") or ""
+        else:
+            pwsh["error"] = (ps.stderr or "Unable to inspect Az PowerShell context").strip()[:400]
+    except Exception as e:
+        pwsh["error"] = str(e)[:400]
+
+    sub_aligned = False
+    tenant_aligned = False
+    if cli["loggedIn"] and pwsh["loggedIn"]:
+        sub_aligned = cli["subscriptionId"].strip().lower() == pwsh["subscriptionId"].strip().lower()
+        tenant_aligned = cli["tenantId"].strip().lower() == pwsh["tenantId"].strip().lower()
+
+    issues: list[str] = []
+    if not cli["installed"]:
+        issues.append("Azure CLI is not installed.")
+    elif not cli["loggedIn"]:
+        issues.append("Azure CLI is not logged in. Run: az login")
+    if not pwsh["installed"]:
+        issues.append("Az PowerShell module is not installed. Run: Install-Module Az -Scope CurrentUser")
+    elif not pwsh["loggedIn"]:
+        issues.append("Azure PowerShell is not logged in. Run: Connect-AzAccount")
+    if cli["loggedIn"] and pwsh["loggedIn"] and (not sub_aligned or not tenant_aligned):
+        issues.append("Azure CLI and Az PowerShell are using different subscription/tenant contexts.")
+
+    return {
+        "ready": len(issues) == 0,
+        "cli": cli,
+        "pwsh": pwsh,
+        "aligned": {
+            "subscription": sub_aligned,
+            "tenant": tenant_aligned,
+        },
+        "issues": issues,
+    }
+
+
 class TeardownRequest(BaseModel):
     fabric_workspace_name: str = ""
     resource_group_name: str = ""
@@ -519,6 +624,19 @@ def func_response(data, status_code=200):
 
 @app.post("/api/deploy/start")
 async def start_deploy(req: DeployRequest):
+    # Hard gate on local auth/tooling readiness before launch.
+    auth_context = await asyncio.get_event_loop().run_in_executor(None, _get_auth_context_sync)
+    if not auth_context.get("ready", False):
+        issues = auth_context.get("issues", [])
+        return func_response(
+            {
+                "error": "Deployment blocked: local Azure auth context is not ready.",
+                "issues": issues,
+                "authContext": auth_context,
+            },
+            status_code=422,
+        )
+
     # Build descriptive instance ID: P<milestones>-<datetime>
     # Milestone numbers encode which progress-bar milestones are active:
     #   1 = Infra & Ingestion, 2 = Enrichment & Agents,
@@ -575,6 +693,14 @@ async def start_deploy(req: DeployRequest):
     logger.info("Deployment started: %s (workspace=%s, rg=%s)",
                 instance_id, req.fabric_workspace_name, req.resource_group_name)
     return {"instanceId": instance_id, "statusUrl": f"/api/deploy/{instance_id}/status"}
+
+
+@app.get("/api/auth/context")
+async def get_auth_context():
+    """Return local Azure CLI + Az PowerShell authentication context."""
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _get_auth_context_sync)
+    return result
 
 
 async def _run_deploy(instance_id: str, req: DeployRequest):
@@ -1052,17 +1178,23 @@ async def dismiss_teardown_endpoint(instance_id: str):
 async def list_subscriptions():
     """List Azure subscriptions available to the current user."""
     try:
-        result = _az_run(
-            ["az", "account", "list", "--query", "[].{id:id, name:name, isDefault:isDefault}", "-o", "json"],
-            check=True,
-        )
-        subs = json.loads(result.stdout)
+        subs = _list_subscriptions_sync()
         # Sort so default subscription comes first
         subs.sort(key=lambda s: not s.get("isDefault", False))
         return [{"id": s["id"], "name": s["name"]} for s in subs]
     except Exception as e:
         logger.error("Failed to list subscriptions: %s", e)
         return []
+
+
+def _list_subscriptions_sync() -> list[dict]:
+    result = _az_run(
+        ["az", "account", "list", "--query", "[].{id:id, name:name, isDefault:isDefault}", "-o", "json"],
+        check=True,
+    )
+    subs = json.loads(result.stdout)
+    subs.sort(key=lambda s: not s.get("isDefault", False))
+    return subs
 
 
 @app.get("/api/scan/resources")
@@ -1407,37 +1539,117 @@ def _list_ahds_regions_sync() -> list[str]:
 
 @app.get("/api/scan/capacities")
 async def list_capacities(subscription_id: str = ""):
-    """List Fabric capacities in the subscription."""
+    """List Fabric capacities in the requested or all accessible subscriptions."""
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, _list_capacities_sync, subscription_id)
     return result
 
 
 def _list_capacities_sync(subscription_id: str) -> list:
-    """Query az fabric capacity list."""
+    """Query Fabric capacities across all accessible subscriptions or a specific one."""
     try:
-        sub_arg = ["--subscription", subscription_id] if subscription_id else []
-        proc = _az_run(
-            ["az", "fabric", "capacity", "list",
-             "--query", "[].{name:name, id:id, state:state, sku:sku.name, resourceGroup:resourceGroup, location:location}",
-             "-o", "json"] + sub_arg,
-            check=True,
+        subscriptions = _list_subscriptions_sync()
+        subscription_names = {sub.get("id", ""): sub.get("name", "") for sub in subscriptions}
+
+        query = (
+            "Resources "
+            "| where type =~ 'microsoft.fabric/capacities' "
+            "| project name, id, resourceGroup, location, subscriptionId, "
+            "sku=tostring(sku.name), state=tostring(properties.state)"
         )
-        capacities = json.loads(proc.stdout)
-        return [
-            {
-                "name": c["name"],
-                "id": c.get("id", ""),
-                "state": c.get("state", "Unknown"),
-                "sku": c.get("sku", ""),
-                "resourceGroup": c.get("resourceGroup", ""),
-                "location": c.get("location", ""),
-                "subscription": subscription_id,
-            }
-            for c in capacities
-        ]
+        if subscription_id:
+            safe_subscription_id = subscription_id.replace("'", "''")
+            query += f" | where subscriptionId =~ '{safe_subscription_id}'"
+
+        proc = _az_run(
+            ["az", "graph", "query", "-q", query, "--first", "1000", "-o", "json"],
+            timeout=30,
+        )
+
+        capacities: list[dict] = []
+        if proc.returncode == 0:
+            graph_result = json.loads(proc.stdout or "{}")
+            for capacity in graph_result.get("data", []):
+                sub_id = capacity.get("subscriptionId", "")
+                capacities.append(
+                    {
+                        "name": capacity.get("name", ""),
+                        "id": capacity.get("id", ""),
+                        "state": capacity.get("state", "Unknown") or "Unknown",
+                        "sku": capacity.get("sku", ""),
+                        "resourceGroup": capacity.get("resourceGroup", ""),
+                        "location": capacity.get("location", ""),
+                        "subscription": sub_id,
+                        "subscriptionName": subscription_names.get(sub_id, sub_id),
+                    }
+                )
+        else:
+            logger.warning(
+                "Azure Resource Graph capacity query failed, falling back to az fabric capacity list: %s",
+                (proc.stderr or "unknown error").strip()[:400],
+            )
+            fallback_subscriptions = [
+                next(
+                    (sub for sub in subscriptions if sub.get("id") == subscription_id),
+                    {"id": subscription_id, "name": subscription_id, "isDefault": False},
+                )
+            ] if subscription_id else subscriptions[:12]
+
+            seen_capacity_ids: set[str] = set()
+            for sub in fallback_subscriptions:
+                sub_id = sub.get("id", "")
+                sub_name = sub.get("name", sub_id)
+                if not sub_id:
+                    continue
+
+                sub_proc = _az_run(
+                    [
+                        "az", "fabric", "capacity", "list",
+                        "--subscription", sub_id,
+                        "--query", "[].{name:name, id:id, state:state, sku:sku.name, resourceGroup:resourceGroup, location:location}",
+                        "-o", "json",
+                    ],
+                    timeout=15,
+                )
+                if sub_proc.returncode != 0:
+                    logger.info(
+                        "Skipping fallback Fabric capacity scan for subscription '%s' (%s): %s",
+                        sub_name,
+                        sub_id,
+                        (sub_proc.stderr or "access unavailable").strip()[:300],
+                    )
+                    continue
+
+                sub_capacities = json.loads(sub_proc.stdout or "[]")
+                for capacity in sub_capacities:
+                    capacity_id = capacity.get("id", "")
+                    dedupe_key = capacity_id or f"{sub_id}:{capacity.get('resourceGroup', '')}:{capacity.get('name', '')}"
+                    if dedupe_key in seen_capacity_ids:
+                        continue
+                    seen_capacity_ids.add(dedupe_key)
+                    capacities.append(
+                        {
+                            "name": capacity["name"],
+                            "id": capacity_id,
+                            "state": capacity.get("state", "Unknown"),
+                            "sku": capacity.get("sku", ""),
+                            "resourceGroup": capacity.get("resourceGroup", ""),
+                            "location": capacity.get("location", ""),
+                            "subscription": sub_id,
+                            "subscriptionName": sub_name,
+                        }
+                    )
+
+        capacities.sort(
+            key=lambda capacity: (
+                capacity.get("state") != "Active",
+                capacity.get("subscriptionName", "").lower(),
+                capacity.get("name", "").lower(),
+            )
+        )
+        return capacities
     except Exception as e:
-        logger.warning("Failed to list Fabric capacities: %s", e)
+        logger.warning("Failed to list Fabric capacities across subscriptions: %s", e)
         return []
 
 

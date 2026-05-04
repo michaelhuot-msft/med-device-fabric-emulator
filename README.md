@@ -315,6 +315,11 @@ graph LR
 ### Prerequisites
 
 > **These prerequisites are required for both the Orchestrator UI and command-line (`Deploy-All.ps1`) deployments.** The setup script detects your OS and provides platform-specific install commands for anything that's missing.
+>
+> **Authentication requirement (mandatory):** On the machine running deployment, you must be logged in to both Azure CLI and Azure PowerShell:
+> - `az login`
+> - `Connect-AzAccount`
+> - Keep both contexts on the same subscription/tenant (`az account show`, `Get-AzContext`)
 
 Run the setup script to check and install all dependencies:
 
@@ -333,6 +338,9 @@ To check without installing anything: `.\setup-prereqs.ps1 -CheckOnly`
 
 **Required Azure/Fabric:**
 - Azure subscription with permissions to create resource groups, Health Data Services, ACR, ACI, Storage, and Managed Identities
+- Azure CLI authenticated (`az login`)
+- Azure PowerShell authenticated (`Connect-AzAccount`)
+- Azure CLI + Az PowerShell on the same subscription/tenant context
 - Microsoft Fabric capacity (**paid F-SKU** such as F2 or F64 — trial capacities cannot deploy Healthcare Data Solutions)
 - **NOTE:** If you do not use a paid F-SKU, you will not be able to deploy Healthcare Data Solutions which is core to the entire solution
 - Fabric tenant settings enabled: **Data Activator**, **Copilot**, and **Azure OpenAI Service**

@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
+  Badge,
   Tab,
   TabList,
   Text,
@@ -12,6 +13,7 @@ import {
   DeleteRegular,
 } from "@fluentui/react-icons";
 import { spacing } from "../theme";
+import { useAppState } from "../AppState";
 import {
   AzureIcon,
   FabricIcon,
@@ -108,6 +110,64 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
+  navInner: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.s,
+    flexWrap: "wrap",
+    minHeight: "48px",
+  },
+  contextStrip: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: tokens.spacingHorizontalXS,
+    flexWrap: "wrap",
+    paddingTop: tokens.spacingVerticalXXS,
+    paddingBottom: tokens.spacingVerticalXXS,
+  },
+  contextPill: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1px",
+    minWidth: "124px",
+    maxWidth: "220px",
+    padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalS}`,
+    borderRadius: tokens.borderRadiusSmall,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  contextTitle: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    lineHeight: "12px",
+  },
+  contextValue: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase100,
+    fontWeight: tokens.fontWeightSemibold,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+    lineHeight: "14px",
+    maxHeight: "28px",
+  },
+  contextSubtext: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: "11px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+    lineHeight: "13px",
+    maxHeight: "26px",
+  },
   content: {
     flex: 1,
     padding: spacing.xxl,
@@ -147,6 +207,26 @@ export function Layout() {
   const styles = useStyles();
   const navigate = useNavigate();
   const location = useLocation();
+  const { selectedSubscription, subscriptions, authContext, authContextLoading } = useAppState();
+
+  const selectedSubscriptionInfo = subscriptions.find((subscription) => subscription.id === selectedSubscription);
+  const selectedSubscriptionLabel =
+    selectedSubscriptionInfo?.name || authContext?.cli.subscriptionName || authContext?.pwsh.subscriptionName || "Not selected";
+  const selectedSubscriptionId =
+    selectedSubscriptionInfo?.id || authContext?.cli.subscriptionId || authContext?.pwsh.subscriptionId || "";
+  const selectedSubscriptionShortId = selectedSubscriptionId ? selectedSubscriptionId.slice(0, 8) : "";
+  const cliLabel = authContextLoading
+    ? "Checking Azure CLI..."
+    : authContext?.cli.loggedIn
+      ? authContext.cli.user
+      : authContext?.cli.error || "Not logged in";
+  const pwshLabel = authContextLoading
+    ? "Checking Az PowerShell..."
+    : authContext?.pwsh.loggedIn
+      ? authContext.pwsh.user
+      : authContext?.pwsh.error || "Not logged in";
+  const contextReady = !!authContext?.ready;
+  const contextAligned = !!authContext?.aligned.subscription && !!authContext?.aligned.tenant;
 
   const currentTab =
     location.pathname.startsWith("/monitor")
@@ -223,20 +303,52 @@ export function Layout() {
       </div>
 
       <div className={styles.nav}>
-        <TabList
-          selectedValue={currentTab}
-          onTabSelect={(_, data) => navigate(data.value as string)}
-        >
-          <Tab value="/deploy" icon={<RocketRegular />}>
-            Deploy
-          </Tab>
-          <Tab value="/history" icon={<HistoryRegular />}>
-            History
-          </Tab>
-          <Tab value="/teardown" icon={<DeleteRegular />}>
-            Teardown
-          </Tab>
-        </TabList>
+        <div className={styles.navInner}>
+          <TabList
+            selectedValue={currentTab}
+            onTabSelect={(_, data) => navigate(data.value as string)}
+          >
+            <Tab value="/deploy" icon={<RocketRegular />}>
+              Deploy
+            </Tab>
+            <Tab value="/history" icon={<HistoryRegular />}>
+              History
+            </Tab>
+            <Tab value="/teardown" icon={<DeleteRegular />}>
+              Teardown
+            </Tab>
+          </TabList>
+
+          <div className={styles.contextStrip}>
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Selected Subscription</Text>
+              <Text className={styles.contextValue}>{selectedSubscriptionLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {selectedSubscriptionId || "No subscription selected"}
+              </Text>
+            </div>
+
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Azure CLI</Text>
+              <Text className={styles.contextValue}>{cliLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {authContext?.cli.subscriptionName || (selectedSubscriptionShortId ? `Sub ${selectedSubscriptionShortId}` : "No active context")}
+              </Text>
+            </div>
+
+            <div className={styles.contextPill}>
+              <Text className={styles.contextTitle}>Az PowerShell</Text>
+              <Text className={styles.contextValue}>{pwshLabel}</Text>
+              <Text className={styles.contextSubtext}>
+                {authContext?.pwsh.subscriptionName || (selectedSubscriptionShortId ? `Sub ${selectedSubscriptionShortId}` : "No active context")}
+              </Text>
+            </div>
+
+            <Badge size="small" color={contextReady && contextAligned ? "success" : authContextLoading ? "informative" : "warning"}>
+              {authContextLoading ? "Checking context" : contextReady && contextAligned ? "Contexts aligned" : "Context needs attention"}
+            </Badge>
+          </div>
+        </div>
       </div>
 
       <div className={styles.content}>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { listCapacities, type FabricCapacity } from "./api";
+import { getAuthContext, listCapacities, type AuthContext, type FabricCapacity } from "./api";
 
 interface Subscription {
   id: string;
@@ -25,6 +25,8 @@ interface AppState {
   // Consumers may still re-fetch when the user explicitly clicks Refresh.
   subscriptions: Subscription[];
   capacities: FabricCapacity[];
+  authContext: AuthContext | null;
+  authContextLoading: boolean;
   teardownScan: BackgroundScanState;
   // Force a new teardown scan (used by the Teardown page refresh button).
   refreshTeardownScan: (subscriptionId?: string) => void;
@@ -45,6 +47,8 @@ const AppStateContext = createContext<AppState>({
   setSelectedSubscription: () => {},
   subscriptions: [],
   capacities: [],
+  authContext: null,
+  authContextLoading: true,
   teardownScan: defaultScan,
   refreshTeardownScan: () => {},
 });
@@ -53,6 +57,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [selectedSubscription, setSelectedSubscription] = useState("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [capacities, setCapacities] = useState<FabricCapacity[]>([]);
+  const [authContext, setAuthContext] = useState<AuthContext | null>(null);
+  const [authContextLoading, setAuthContextLoading] = useState(true);
   const [teardownScan, setTeardownScan] = useState<BackgroundScanState>(defaultScan);
   const pollTimerRef = useRef<number | null>(null);
   const activeScanIdRef = useRef<string>("");
@@ -119,6 +125,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (hasBootstrappedRef.current) return;
     hasBootstrappedRef.current = true;
 
+    getAuthContext()
+      .then((context) => setAuthContext(context))
+      .catch(() => setAuthContext(null))
+      .finally(() => setAuthContextLoading(false));
+
     fetch("/api/scan/subscriptions")
       .then((r) => r.json())
       .then((subs: Subscription[]) => {
@@ -127,9 +138,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         const initialSub = selectedSubscription || subs[0].id;
         if (!selectedSubscription) setSelectedSubscription(subs[0].id);
 
-        // Start Fabric capacity scan across all subscriptions in parallel
-        Promise.all(subs.map((s) => listCapacities(s.id)))
-          .then((results) => setCapacities(results.flat()))
+        // Start Fabric capacity scan across all accessible subscriptions.
+        listCapacities()
+          .then((results) => setCapacities(results))
           .catch(() => { /* non-fatal */ });
 
         // Start the teardown resource scan eagerly so the Teardown tab is
@@ -142,6 +153,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (selectedSubscription || subscriptions.length === 0) return;
+    const preferredSubscriptionId =
+      authContext?.cli.subscriptionId || authContext?.pwsh.subscriptionId || "";
+    if (!preferredSubscriptionId) return;
+    const match = subscriptions.find((subscription) => subscription.id === preferredSubscriptionId);
+    if (match) {
+      setSelectedSubscription(match.id);
+    }
+  }, [authContext, selectedSubscription, subscriptions]);
+
   return (
     <AppStateContext.Provider
       value={{
@@ -149,6 +171,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setSelectedSubscription,
         subscriptions,
         capacities,
+        authContext,
+        authContextLoading,
         teardownScan,
         refreshTeardownScan,
       }}

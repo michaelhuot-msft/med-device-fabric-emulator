@@ -17,6 +17,170 @@ $env:PYTHONIOENCODING = "utf-8"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+$hostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+$procArch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+Write-Host "Host architecture: $hostArch (PowerShell process: $procArch)" -ForegroundColor Gray
+if ($hostArch -eq "Arm64" -and $procArch -ne "Arm64") {
+    Write-Host "  ⚠ ARM64 host detected with non-native PowerShell process architecture. Performance may be slower under emulation." -ForegroundColor Yellow
+}
+
+function Show-ArmDeploymentDiagnostics {
+    param(
+        [Parameter(Mandatory)][string]$ResourceGroup,
+        [Parameter(Mandatory)][string]$DeploymentName,
+        [int]$MaxRecentOperations = 8
+    )
+
+    $summaryRaw = az deployment group show `
+        --resource-group $ResourceGroup `
+        --name $DeploymentName `
+        --query "{state:properties.provisioningState, timestamp:properties.timestamp, correlationId:properties.correlationId, error:properties.error}" `
+        -o json 2>$null
+
+    if ($LASTEXITCODE -eq 0 -and $summaryRaw) {
+        $summary = $summaryRaw | ConvertFrom-Json
+        Write-Host "    state: $($summary.state)" -ForegroundColor DarkGray
+        if ($summary.timestamp) {
+            Write-Host "    timestamp: $($summary.timestamp)" -ForegroundColor DarkGray
+        }
+        if ($summary.correlationId) {
+            Write-Host "    correlationId: $($summary.correlationId)" -ForegroundColor DarkGray
+        }
+        if ($summary.error) {
+            $errorText = ($summary.error | ConvertTo-Json -Compress -Depth 12)
+            if ($errorText.Length -gt 300) {
+                $errorText = $errorText.Substring(0, 300) + "..."
+            }
+            Write-Host "    error: $errorText" -ForegroundColor Yellow
+        }
+    }
+
+    $opsRaw = az deployment operation group list `
+        --resource-group $ResourceGroup `
+        --name $DeploymentName `
+        --query "[].{state:properties.provisioningState, name:properties.targetResource.resourceName, type:properties.targetResource.resourceType, status:properties.statusMessage}" `
+        -o json 2>$null
+
+    if ($LASTEXITCODE -eq 0 -and $opsRaw) {
+        $ops = @($opsRaw | ConvertFrom-Json)
+        if ($ops.Count -gt 0) {
+            $failedOps = @($ops | Where-Object { $_.state -and $_.state -notin @("Succeeded", "Running") })
+            Write-Host "    operations: $($ops.Count), non-success: $($failedOps.Count)" -ForegroundColor DarkGray
+
+            $recentOps = @($ops | Select-Object -Last $MaxRecentOperations)
+            foreach ($op in $recentOps) {
+                $resourceName = if ($op.name) { $op.name } else { "(deployment scope)" }
+                $resourceType = if ($op.type) { $op.type } else { "n/a" }
+                $state = if ($op.state) { $op.state } else { "Unknown" }
+                Write-Host "      [$state] $resourceName ($resourceType)" -ForegroundColor DarkGray
+            }
+
+            foreach ($op in ($failedOps | Select-Object -Last 3)) {
+                $statusText = ""
+                if ($op.status) {
+                    $statusText = ($op.status | ConvertTo-Json -Compress -Depth 12)
+                }
+                if ($statusText.Length -gt 300) {
+                    $statusText = $statusText.Substring(0, 300) + "..."
+                }
+                if ($statusText) {
+                    Write-Host "      detail: $statusText" -ForegroundColor Yellow
+                }
+            }
+        }
+    }
+}
+
+function Invoke-ArmGroupDeployment {
+    param(
+        [Parameter(Mandatory)][string]$ResourceGroup,
+        [Parameter(Mandatory)][string]$DeploymentName,
+        [Parameter(Mandatory)][string]$TemplateFile,
+        [string[]]$ParameterArgs = @(),
+        [string]$Query,
+        [switch]$OnlyShowErrors
+    )
+
+    $cmd = @(
+        "deployment", "group", "create",
+        "--resource-group", $ResourceGroup,
+        "--name", $DeploymentName,
+        "--template-file", $TemplateFile
+    )
+
+    if ($ParameterArgs -and $ParameterArgs.Count -gt 0) {
+        $cmd += $ParameterArgs
+    }
+    if ($OnlyShowErrors) {
+        $cmd += "--only-show-errors"
+    }
+    $cmd += "--no-wait"
+
+    Write-Host "  ARM deployment started: $DeploymentName (template: $TemplateFile)" -ForegroundColor DarkGray
+    Write-Host "    Waiting for provisioning result (heartbeat every ~15s)..." -ForegroundColor DarkGray
+
+    $result = az @cmd 2>&1
+    $createExitCode = $LASTEXITCODE
+
+    if ($createExitCode -ne 0) {
+        $global:LASTEXITCODE = $createExitCode
+        return $result
+    }
+
+    $startTime = Get-Date
+    $lastHeartbeat = [datetime]::MinValue
+    $state = ""
+    while ($true) {
+        $stateRaw = az deployment group show `
+            --resource-group $ResourceGroup `
+            --name $DeploymentName `
+            --query "properties.provisioningState" -o tsv 2>$null
+
+        if ($LASTEXITCODE -eq 0 -and $stateRaw) {
+            $state = "$stateRaw".Trim()
+        } else {
+            $state = "Running"
+        }
+
+        $now = Get-Date
+        if ($lastHeartbeat -eq [datetime]::MinValue -or ($now - $lastHeartbeat).TotalSeconds -ge 15) {
+            $elapsed = [math]::Round((New-TimeSpan -Start $startTime -End $now).TotalMinutes, 1)
+            Write-Host "    [$elapsed min] ARM status: $state" -ForegroundColor DarkGray
+            $lastHeartbeat = $now
+        }
+
+        if ($state -in @("Succeeded", "Failed", "Canceled")) {
+            break
+        }
+
+        Start-Sleep -Seconds 10
+    }
+
+    if ($state -eq "Succeeded") {
+        Write-Host "    ARM deployment completed successfully." -ForegroundColor Green
+        $exitCode = 0
+    } else {
+        Write-Host "    ARM deployment completed with status: $state" -ForegroundColor Yellow
+        $exitCode = 1
+    }
+
+    if ($Query) {
+        $result = az deployment group show `
+            --resource-group $ResourceGroup `
+            --name $DeploymentName `
+            --query $Query -o json 2>&1
+        if ($LASTEXITCODE -ne 0 -and $exitCode -eq 0) {
+            $exitCode = $LASTEXITCODE
+        }
+    }
+
+    Write-Host "  ARM deployment diagnostics: $DeploymentName" -ForegroundColor DarkGray
+    Show-ArmDeploymentDiagnostics -ResourceGroup $ResourceGroup -DeploymentName $DeploymentName
+
+    $global:LASTEXITCODE = $exitCode
+    return $result
+}
+
 # Serialize tags for Bicep parameter passing
 $tagsParamFile = Join-Path $env:TEMP "deploy-tags-$(Get-Random).json"
 $tagsParamContent = @{
@@ -203,26 +367,26 @@ if ($AdminSecurityGroup) {
     }
 }
 
-$infra = az deployment group create `
-    --resource-group $ResourceGroupName `
-    --template-file bicep/infra.bicep `
-    --parameters adminGroupObjectId="$adminGroupObjectId" `
-    --parameters $tagsParamRef `
-    --query properties.outputs `
-    --only-show-errors 2>&1
+$infra = Invoke-ArmGroupDeployment `
+    -ResourceGroup $ResourceGroupName `
+    -DeploymentName "infra" `
+    -TemplateFile "bicep/infra.bicep" `
+    -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", $tagsParamRef) `
+    -Query "properties.outputs" `
+    -OnlyShowErrors
 
 if ($LASTEXITCODE -ne 0) {
     $infraStr = $infra -join "`n"
     if ($infraStr -match 'DeploymentActive') {
         Write-Host "  A previous deployment is still active. Waiting 60s and retrying..." -ForegroundColor Yellow
         Start-Sleep -Seconds 60
-        $infra = az deployment group create `
-            --resource-group $ResourceGroupName `
-            --template-file bicep/infra.bicep `
-            --parameters adminGroupObjectId="$adminGroupObjectId" `
-            --parameters $tagsParamRef `
-            --query properties.outputs `
-            --only-show-errors 2>&1
+        $infra = Invoke-ArmGroupDeployment `
+            -ResourceGroup $ResourceGroupName `
+            -DeploymentName "infra" `
+            -TemplateFile "bicep/infra.bicep" `
+            -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", $tagsParamRef) `
+            -Query "properties.outputs" `
+            -OnlyShowErrors
         if ($LASTEXITCODE -ne 0) {
             Write-Host "ERROR: Infrastructure deployment failed after retry." -ForegroundColor Red
             Write-Host "  $infra" -ForegroundColor Red
@@ -308,14 +472,22 @@ if (Test-Path $acrBuildErrLog) {
 Write-Host "--- STEP 4: DEPLOYING SYSTEM-IDENTITY EMULATOR ---" -ForegroundColor Cyan
 $fullImageTag = "$acrLoginServer/masimo-emulator:v1"
 
-az deployment group create `
-  --resource-group $ResourceGroupName `
-  --template-file bicep/emulator.bicep `
-  --parameters acrName=$acrName `
-               imageName=$fullImageTag `
-               eventHubName=$ehName `
-               eventHubNamespace=$ehNamespace `
-  --parameters $tagsParamRef
+$null = Invoke-ArmGroupDeployment `
+    -ResourceGroup $ResourceGroupName `
+    -DeploymentName "emulator" `
+    -TemplateFile "bicep/emulator.bicep" `
+    -ParameterArgs @(
+        "--parameters", "acrName=$acrName",
+        "imageName=$fullImageTag",
+        "eventHubName=$ehName",
+        "eventHubNamespace=$ehNamespace",
+        "--parameters", $tagsParamRef
+    )
+
+if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Emulator deployment failed." -ForegroundColor Red
+        exit 1
+}
 
 Write-Host "--- SUCCESS ---" -ForegroundColor Green
 Write-Host "Emulator running with System-Assigned Identity (using Entra ID for Event Hub)."

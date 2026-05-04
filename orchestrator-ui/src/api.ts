@@ -4,6 +4,26 @@
 
 const API_BASE = "/api";
 
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export interface DeploymentConfig {
   resource_group_name: string;
   location: string;
@@ -72,6 +92,27 @@ export interface DeploymentSummary {
   customStatus: Record<string, unknown> | null;
 }
 
+export interface AuthMechanismContext {
+  installed: boolean;
+  loggedIn: boolean;
+  user: string;
+  subscriptionName: string;
+  subscriptionId: string;
+  tenantId: string;
+  error: string;
+}
+
+export interface AuthContext {
+  ready: boolean;
+  cli: AuthMechanismContext;
+  pwsh: AuthMechanismContext;
+  aligned: {
+    subscription: boolean;
+    tenant: boolean;
+  };
+  issues: string[];
+}
+
 export async function startDeployment(
   config: DeploymentConfig
 ): Promise<{ instanceId: string; statusUrl: string }> {
@@ -82,7 +123,17 @@ export async function startDeployment(
   });
   if (!resp.ok) {
     const err = await resp.json();
-    throw new Error(err.error || "Failed to start deployment");
+    const issues = Array.isArray(err.issues) ? err.issues : [];
+    const suffix = issues.length > 0 ? ` ${issues.join(" ")}` : "";
+    throw new Error((err.error || "Failed to start deployment") + suffix);
+  }
+  return resp.json();
+}
+
+export async function getAuthContext(): Promise<AuthContext> {
+  const resp = await fetchWithTimeout(`${API_BASE}/auth/context`, {}, 8000);
+  if (!resp.ok) {
+    throw new Error("Failed to get auth context");
   }
   return resp.json();
 }
@@ -225,13 +276,19 @@ export interface FabricCapacity {
   resourceGroup: string;
   location: string;
   subscription: string;
+  subscriptionName?: string;
 }
 
 export async function listCapacities(
-  subscriptionId: string
+  subscriptionId = ""
 ): Promise<FabricCapacity[]> {
-  const resp = await fetch(
-    `${API_BASE}/scan/capacities?subscription_id=${encodeURIComponent(subscriptionId)}`
+  const query = subscriptionId
+    ? `?subscription_id=${encodeURIComponent(subscriptionId)}`
+    : "";
+  const resp = await fetchWithTimeout(
+    `${API_BASE}/scan/capacities${query}`,
+    {},
+    12000
   );
   if (!resp.ok) return [];
   return resp.json();
