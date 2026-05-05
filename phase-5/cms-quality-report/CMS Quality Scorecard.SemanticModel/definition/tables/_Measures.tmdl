@@ -79,3 +79,84 @@ table _Measures
 		COUNTROWS(fact_claim)
 		formatString: #,0
 		lineageTag: 99999999-aaaa-bbbb-cccc-99999999999e
+        // ── Payer-stratified measures ────────────────────────────────────────
+        // Wrap the base measures in CALCULATE() with a payer_category filter
+        // so visuals can compare Medicare vs Medicaid vs Commercial rates
+        // without needing a slicer.
+
+        measure 'Quality Rate (Medicare)' =
+                CALCULATE([Quality Rate], agg_quality_measures[payer_category] = "Medicare")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a1
+
+        measure 'Quality Rate (Medicaid)' =
+                CALCULATE([Quality Rate], agg_quality_measures[payer_category] = "Medicaid")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a2
+
+        measure 'Quality Rate (Commercial)' =
+                CALCULATE([Quality Rate], agg_quality_measures[payer_category] = "Commercial")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a3
+
+        measure 'Quality Rate (Uninsured)' =
+                CALCULATE([Quality Rate], agg_quality_measures[payer_category] = "Uninsured")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a4
+
+        measure 'Collection Rate (Medicare)' =
+                CALCULATE([Collection Rate], fact_claim[payer_category] = "Medicare")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a5
+
+        measure 'Collection Rate (Medicaid)' =
+                CALCULATE([Collection Rate], fact_claim[payer_category] = "Medicaid")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a6
+
+        measure 'Collection Rate (Commercial)' =
+                CALCULATE([Collection Rate], fact_claim[payer_category] = "Commercial")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a7
+
+        measure 'Denial Rate (Medicare)' =
+                CALCULATE([Denial Rate], fact_claim[payer_category] = "Medicare")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a8
+
+        measure 'Denial Rate (Medicaid)' =
+                CALCULATE([Denial Rate], fact_claim[payer_category] = "Medicaid")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999a9
+
+        measure 'Denial Rate (Commercial)' =
+                CALCULATE([Denial Rate], fact_claim[payer_category] = "Commercial")
+                formatString: 0.0%
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999aa
+
+        measure 'Total Paid (Medicare)' =
+                CALCULATE(SUM(fact_claim[paid_amount]), fact_claim[payer_category] = "Medicare")
+                formatString: \$#,0
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999ab
+
+        measure 'Total Paid (Medicaid)' =
+                CALCULATE(SUM(fact_claim[paid_amount]), fact_claim[payer_category] = "Medicaid")
+                formatString: \$#,0
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999ac
+
+        measure 'Total Paid (Commercial)' =
+                CALCULATE(SUM(fact_claim[paid_amount]), fact_claim[payer_category] = "Commercial")
+                formatString: \$#,0
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999ad
+
+        measure 'Patients Measured (Medicare)' =
+                CALCULATE([Patients Measured], agg_quality_measures[payer_category] = "Medicare")
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999ae
+
+        measure 'Patients Measured (Medicaid)' =
+                CALCULATE([Patients Measured], agg_quality_measures[payer_category] = "Medicaid")
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999af
+
+        measure 'Patients Measured (Commercial)' =
+                CALCULATE([Patients Measured], agg_quality_measures[payer_category] = "Commercial")
+                lineageTag: 99999999-aaaa-bbbb-cccc-9999999999b0

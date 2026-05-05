@@ -35,7 +35,7 @@ Silver Lakehouse (FHIR R4)                      Gold Reporting Lakehouse
 1. **Synthea** generates patients with `Claim`, `ExplanationOfBenefit`, and `Coverage` FHIR resources (enabled via `synthea.properties`)
 2. **FHIR Loader** uploads all resources to FHIR Service (no filtering by type)
 3. **FHIR $export** → ADLS Gen2 → Bronze Lakehouse → Silver Lakehouse (standard HDS pipeline)
-4. **Materialization notebook** (`materialize_claims_quality.py`) transforms Silver → Gold star schema
+4. **Materialization notebook** ([`phase-5/materialize_claims_quality.py`](../phase-5/materialize_claims_quality.py)) transforms Silver → Gold star schema
 5. **CMS Quality Scorecard** report binds to Gold Lakehouse via Direct Lake
 
 ## CMS Quality Measures Computed
@@ -83,6 +83,27 @@ PDC (Proportion of Days Covered) ≥ 80% = **Adherent**; < 80% = **Non-Adherent*
 | 4 | Medication Adherence | PDC gauges (3 classes), adherent vs non-adherent |
 | 5 | Care Gap Closure | Priority list, gap status by measure |
 | 6 | Payer Performance | Quality rate by payer, denial vs quality scatter |
+
+## Payer-Specific Quality Stratification
+
+Every patient is mapped to a primary payer through the latest active `Coverage` record. The `payer_category` column is denormalized onto **`fact_claim`**, **`agg_quality_measures`**, and **`agg_quality_summary`** so reports can compare Medicare / Medicaid / Commercial / Uninsured side-by-side without complex joins.
+
+### Stratified DAX Measures (in `_Measures`)
+
+| Domain | Measures |
+|--------|----------|
+| Quality rate | `Quality Rate (Medicare)`, `Quality Rate (Medicaid)`, `Quality Rate (Commercial)`, `Quality Rate (Uninsured)` |
+| Revenue | `Total Paid (Medicare)`, `Total Paid (Medicaid)`, `Total Paid (Commercial)` |
+| Collection efficiency | `Collection Rate (Medicare)`, `Collection Rate (Medicaid)`, `Collection Rate (Commercial)` |
+| Denial risk | `Denial Rate (Medicare)`, `Denial Rate (Medicaid)`, `Denial Rate (Commercial)` |
+| Population size | `Patients Measured (Medicare)`, `Patients Measured (Medicaid)`, `Patients Measured (Commercial)` |
+
+### Suggested visuals for **Payer Performance** (page 6)
+1. Clustered column: `Quality Rate (Medicare/Medicaid/Commercial)` × measure_id
+2. Scatter: `Denial Rate` vs `Quality Rate` per payer (bubble size = `Total Paid`)
+3. Slicer: `dim_payer[payer_category]` with cross-page filtering enabled
+4. KPI cards: `Total Paid` per payer with YoY trend
+5. Matrix: rows = measure_name, columns = payer_category, values = quality_rate (with conditional formatting against benchmark)
 
 ## Ontology Extensions
 

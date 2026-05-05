@@ -19,7 +19,7 @@
 - [x] Build CMS Quality Scorecard Power BI report (6 pages, 14 DAX measures, Direct Lake)
 - [x] Extend ontology with 5 claims/quality entities + 4 relationships
 - [x] Add Phase 5 to Orchestrator UI, Deploy-All.ps1, and backend function_app.py
-- [ ] Add payer-specific quality stratification (Medicare vs Medicaid vs Commercial rates)
+- [x] Add payer-specific quality stratification (Medicare vs Medicaid vs Commercial rates) — `payer_category` denormalised on `fact_claim` / `agg_quality_measures` / `agg_quality_summary`; 14 stratified DAX measures added to the semantic model
 - [ ] Add SDOH (Social Determinants of Health) integration from zip-code-level public datasets
 
 ---

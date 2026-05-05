@@ -81,19 +81,62 @@ try:
         F.current_timestamp().alias("load_timestamp")
     ).dropDuplicates(["payer_id"])
     
-    dim_payer.write.format("delta").mode("overwrite").saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.dim_payer")
-    print(f"  ✓ dim_payer: {dim_payer.count()} rows")
+    # payer_category mirrors payer_type as a convenience name for stratified
+    # reporting (Medicare / Medicaid / Commercial / Uninsured / Other).
+    dim_payer = dim_payer.withColumn(
+        "payer_category",
+        F.when(F.col("payer_type").isin("Medicare", "Medicaid", "Commercial", "Uninsured"),
+               F.col("payer_type")).otherwise(F.lit("Other"))
+    )
+    dim_payer.write.format("delta").mode("overwrite").option("mergeSchema", "true") \
+        .saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.dim_payer")
+    print(f"  ✓ dim_payer: {dim_payer.count()} rows (with payer_category)")
 except Exception as e:
     print(f"  ⚠ Coverage table not available yet — creating empty dim_payer: {e}")
     dim_payer_schema = StructType([
         StructField("payer_key", LongType()), StructField("payer_id", StringType()),
         StructField("payer_name", StringType()), StructField("payer_type", StringType()),
+        StructField("payer_category", StringType()),
         StructField("coverage_start", DateType()), StructField("coverage_end", DateType()),
         StructField("patient_ref", StringType()), StructField("is_active", IntegerType()),
         StructField("load_timestamp", TimestampType())
     ])
     spark.createDataFrame([], dim_payer_schema).write.format("delta").mode("overwrite") \
         .saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.dim_payer")
+
+
+# ============================================================================
+# STEP 1b: BUILD patient_payer — primary payer per patient (for stratification)
+# ============================================================================
+# Picks the most recent active Coverage row per patient. Used to denormalize
+# payer_category onto fact_claim and agg_quality_measures so the Power BI
+# report can stratify CMS rates and revenue by Medicare / Medicaid / Commercial.
+
+print("\n--- Step 1b: patient_payer (stratification lookup) ---")
+patient_payer = None
+try:
+    dp = spark.read.format("delta").table(f"{GOLD_LAKEHOUSE}.dbo.dim_payer")
+    if dp.count() > 0:
+        patient_payer = dp.withColumn(
+            "patient_id",
+            F.regexp_extract(F.col("patient_ref"), r"Patient/(.*)", 1)
+        ).filter(F.col("patient_id") != "").withColumn(
+            "rn",
+            F.row_number().over(
+                Window.partitionBy("patient_id")
+                      .orderBy(F.desc_nulls_last("coverage_start"))
+            )
+        ).filter(F.col("rn") == 1).select(
+            "patient_id",
+            F.col("payer_id").alias("primary_payer_id"),
+            F.col("payer_category").alias("payer_category"),
+            F.col("payer_key").alias("primary_payer_key"),
+        )
+        print(f"  ✓ patient_payer: {patient_payer.count()} patients mapped")
+    else:
+        print("  ⚠ dim_payer is empty — payer stratification will default to 'Unknown'")
+except Exception as e:
+    print(f"  ⚠ patient_payer build failed (non-fatal, defaults to Unknown): {e}")
 
 
 # ============================================================================
@@ -196,10 +239,34 @@ try:
     ).withColumn(
         "allowed_amount",
         F.col("billed_amount")  # Synthea doesn't have separate allowed; use billed
+    ).withColumn(
+        # Strip "Patient/" / "Coverage/" prefixes for downstream joins
+        "patient_id",
+        F.regexp_extract(F.col("patient_ref"), r"Patient/(.*)", 1)
+    ).withColumn(
+        "coverage_id",
+        F.regexp_extract(F.col("coverage_ref"), r"Coverage/(.*)", 1)
     )
-    
-    fact_claim.write.format("delta").mode("overwrite").saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.fact_claim")
-    print(f"  ✓ fact_claim: {fact_claim.count()} rows")
+
+    # Stratify each claim by payer_category. Prefer the Coverage referenced by
+    # the EOB itself; fall back to the patient's primary Coverage; default to
+    # "Unknown" when no Coverage data is available.
+    if patient_payer is not None:
+        dp_lookup = spark.read.format("delta").table(f"{GOLD_LAKEHOUSE}.dbo.dim_payer") \
+            .select(F.col("payer_id").alias("coverage_id"),
+                    F.col("payer_category").alias("claim_payer_category"))
+        fact_claim = fact_claim.join(dp_lookup, "coverage_id", "left") \
+            .join(patient_payer.select("patient_id", "payer_category"), "patient_id", "left") \
+            .withColumn(
+                "payer_category",
+                F.coalesce(F.col("claim_payer_category"), F.col("payer_category"), F.lit("Unknown"))
+            ).drop("claim_payer_category")
+    else:
+        fact_claim = fact_claim.withColumn("payer_category", F.lit("Unknown"))
+
+    fact_claim.write.format("delta").mode("overwrite").option("mergeSchema", "true") \
+        .saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.fact_claim")
+    print(f"  ✓ fact_claim: {fact_claim.count()} rows (with payer_category)")
 except Exception as e:
     print(f"  ⚠ ExplanationOfBenefit not available yet: {e}")
     print("  → Claims tables will be populated after Synthea re-run with claims enabled")
@@ -515,14 +582,26 @@ try:
     all_measures = all_measures.withColumn(
         "measurement_year", F.lit(datetime.now().year)
     )
-    
-    all_measures.write.format("delta").mode("overwrite").saveAsTable(
-        f"{GOLD_LAKEHOUSE}.dbo.agg_quality_measures"
-    )
-    print(f"  ✓ agg_quality_measures: {all_measures.count()} rows across 7 measures")
-    
+
+    # Denormalize payer_category onto each measure row so the report can
+    # stratify CMS quality rates by Medicare / Medicaid / Commercial.
+    if patient_payer is not None:
+        all_measures = all_measures.join(
+            patient_payer.select("patient_id", "payer_category"),
+            "patient_id",
+            "left"
+        ).withColumn("payer_category", F.coalesce(F.col("payer_category"), F.lit("Unknown")))
+    else:
+        all_measures = all_measures.withColumn("payer_category", F.lit("Unknown"))
+
+    all_measures.write.format("delta").mode("overwrite").option("mergeSchema", "true") \
+        .saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.agg_quality_measures")
+    print(f"  ✓ agg_quality_measures: {all_measures.count()} rows across 7 measures (with payer_category)")
+
     # ---- Build agg_quality_summary ----
-    agg_summary = all_measures.groupBy("measure_id", "measure_name", "measurement_year").agg(
+    agg_summary = all_measures.groupBy(
+        "measure_id", "measure_name", "measurement_year", "payer_category"
+    ).agg(
         F.sum(F.when(F.col("in_denominator"), 1).otherwise(0)).alias("denominator_count"),
         F.sum(F.when(F.col("in_numerator"), 1).otherwise(0)).alias("numerator_count"),
         F.sum(F.when(F.col("in_exclusion"), 1).otherwise(0)).alias("exclusion_count"),
@@ -540,11 +619,10 @@ try:
             .when(F.col("measure_id") == "CMS144v12", 90.0)
             .otherwise(75.0)
     ).withColumn("load_timestamp", F.current_timestamp())
-    
-    agg_summary.write.format("delta").mode("overwrite").saveAsTable(
-        f"{GOLD_LAKEHOUSE}.dbo.agg_quality_summary"
-    )
-    print(f"  ✓ agg_quality_summary: {agg_summary.count()} rows")
+
+    agg_summary.write.format("delta").mode("overwrite").option("mergeSchema", "true") \
+        .saveAsTable(f"{GOLD_LAKEHOUSE}.dbo.agg_quality_summary")
+    print(f"  ✓ agg_quality_summary: {agg_summary.count()} rows (per measure × payer_category)")
     
 except Exception as e:
     print(f"  ⚠ Quality measures computation error: {e}")
