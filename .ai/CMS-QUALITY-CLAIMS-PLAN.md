@@ -316,7 +316,7 @@ Collection Rate = DIVIDE(SUM(fact_claim[paid_amount]), SUM(fact_claim[billed_amo
 4. ✅ HDS pipeline processes new resource types into Silver Lakehouse automatically
 
 ### Phase B+E — Create Gold Star Schema + Quality Computation ✅ DONE
-1. ✅ Created `fabric-rti/sql/materialize_claims_quality.py` — combined materialization + quality
+1. ✅ Created `phase-5/materialize_claims_quality.py` — combined materialization + quality
 2. ✅ Built `dim_payer`, `dim_diagnosis`, `fact_claim`, `fact_diagnosis`
 3. ✅ Computed 7 CMS eCQM quality measures → `agg_quality_measures`, `agg_quality_summary`
 4. ✅ Computed 3 HEDIS PDC medication adherence scores → `agg_medication_adherence`

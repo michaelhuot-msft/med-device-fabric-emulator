@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased] — May 4, 2026
+
+### Phase 5: Payer-Specific Quality Stratification
+- **Moved** all Phase 5 deployment artifacts under `phase-5/` to match the existing `phase-1/`, `phase-2/`, `phase-4/` convention:
+  - `cms-quality-report/` → `phase-5/cms-quality-report/`
+  - `fabric-rti/sql/materialize_claims_quality.py` → `phase-5/materialize_claims_quality.py`
+  - Updated `Deploy-All.ps1`, `.dockerignore`, and docs to reference the new paths
+- **Added** `payer_category` denormalized column on `dim_payer`, `fact_claim`, `agg_quality_measures`, `agg_quality_summary` (Medicare / Medicaid / Commercial / Uninsured / Other)
+- **Added** `patient_payer` lookup in `materialize_claims_quality.py` — picks each patient's most recent active `Coverage` and propagates payer bucket to facts and quality aggregates
+- **Added** `agg_quality_summary` is now computed per measure × payer_category instead of per measure only — enables side-by-side payer comparisons in Direct Lake
+- **Added** 14 payer-stratified DAX measures in `_Measures` (Quality Rate / Collection Rate / Denial Rate / Total Paid / Patients Measured per payer)
+- **Updated** `docs/phase-5-cms-quality-and-claims.md` with payer stratification section and suggested visuals for the Payer Performance page
+- **Backwards compatible**: payer columns default to "Unknown" when Coverage data is absent; no schema-breaking changes (uses `mergeSchema` on overwrite)
+
 ## [Unreleased] — April 24, 2026
 
 ### Phase 5: CMS Quality & Claims

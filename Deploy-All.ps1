@@ -2234,7 +2234,7 @@ if (-not $SkipQualityMeasures) {
         Write-Host ""
         Write-Host "  --- Step 10a: Claims & Quality Materialization ---" -ForegroundColor Cyan
 
-        $qualityNotebookPath = Join-Path $ScriptDir "fabric-rti\sql\materialize_claims_quality.py"
+        $qualityNotebookPath = Join-Path $ScriptDir "phase-5\materialize_claims_quality.py"
         if (Test-Path $qualityNotebookPath) {
             $pyContent = Get-Content $qualityNotebookPath -Raw
 
@@ -2330,7 +2330,7 @@ if (-not $SkipQualityMeasures) {
         Write-Host ""
         Write-Host "  --- Step 10b: CMS Quality Scorecard Report ---" -ForegroundColor Cyan
 
-        $reportDir = Join-Path $ScriptDir "cms-quality-report"
+        $reportDir = Join-Path $ScriptDir "phase-5\cms-quality-report"
         if (Test-Path $reportDir) {
             Write-Host "  Report definition found at: $reportDir" -ForegroundColor White
             Write-Host "  ✓ CMS Quality Scorecard report artifacts staged for deployment" -ForegroundColor Green

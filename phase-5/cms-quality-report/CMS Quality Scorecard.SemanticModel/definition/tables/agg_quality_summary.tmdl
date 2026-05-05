@@ -27,6 +27,14 @@ table agg_quality_summary
 		sourceColumn: measurement_year
 		summarizeBy: none
 
+	/// Payer bucket the rate is computed for. Slice on this column
+	/// to view Medicare / Medicaid / Commercial rates side-by-side.
+	column payer_category
+		dataType: string
+		lineageTag: 22222222-aaaa-bbbb-cccc-22222222222a
+		sourceColumn: payer_category
+		summarizeBy: none
+
 	column denominator_count
 		dataType: int64
 		lineageTag: 22222222-aaaa-bbbb-cccc-222222222224
