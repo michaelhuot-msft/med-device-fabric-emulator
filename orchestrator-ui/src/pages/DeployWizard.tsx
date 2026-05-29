@@ -236,6 +236,17 @@ export function DeployWizard() {
   const [skipGroup2Collapsed, setSkipGroup2Collapsed] = useState(false);
   const [skipGroup3Collapsed, setSkipGroup3Collapsed] = useState(false);
 
+  const [autoExportXlsx, setAutoExportXlsx] = useState(() => localStorage.getItem("autoExportXlsx") === "true");
+  const [autoExportCsv, setAutoExportCsv] = useState(() => localStorage.getItem("autoExportCsv") === "true");
+
+  useEffect(() => {
+    localStorage.setItem("autoExportXlsx", String(autoExportXlsx));
+  }, [autoExportXlsx]);
+
+  useEffect(() => {
+    localStorage.setItem("autoExportCsv", String(autoExportCsv));
+  }, [autoExportCsv]);
+
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({
     scrollLeft: 0,
@@ -2392,6 +2403,23 @@ export function DeployWizard() {
                   {!config.skip_quality_measures && <Text size={100}>✓ Pop Health</Text>}
                 </div>
               </div>
+
+              <div style={{ borderTop: `1px solid ${tokens.colorNeutralStroke2}`, paddingTop: 12, marginTop: 4 }}>
+                <Text size={200} weight="semibold" block style={{ marginBottom: 8 }}>Auto Export Options</Text>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Checkbox
+                    label="Auto Export Results to .XLSX"
+                    checked={autoExportXlsx}
+                    onChange={(_, d) => setAutoExportXlsx(!!d.checked)}
+                  />
+                  <Checkbox
+                    label="Auto Export Results to .CSV"
+                    checked={autoExportCsv}
+                    onChange={(_, d) => setAutoExportCsv(!!d.checked)}
+                  />
+                </div>
+              </div>
+
               {Object.keys(config.tags).length > 0 && (
                 <div>
                   <Text size={200} weight="semibold" block>Tags</Text>

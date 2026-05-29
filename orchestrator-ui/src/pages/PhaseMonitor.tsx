@@ -446,6 +446,7 @@ export function PhaseMonitor() {
   const [compressCompleted, setCompressCompleted] = useState(false);
   const [afterActionReport, setAfterActionReport] = useState<AfterActionReportResult | null>(null);
   const [afterActionLoading, setAfterActionLoading] = useState(false);
+  const [hasAutoExported, setHasAutoExported] = useState(false);
   const afterActionCardRef = useRef<HTMLDivElement>(null);
 
   // Scroll to After Action report card when it is opened
@@ -579,6 +580,43 @@ export function PhaseMonitor() {
   // Detect if this is a teardown run
   const isTeardown = (status?.customStatus as Record<string, unknown>)?.runType === "teardown"
     || (instanceId ?? "").toLowerCase().startsWith("teardown");
+
+  // Track completion of a new active deployment and auto-open report if auto-export is selected
+  useEffect(() => {
+    if (isComplete && !isTeardown && status?.runtimeStatus === "Completed" && !hasAutoExported) {
+      const autoXlsx = localStorage.getItem("autoExportXlsx") === "true";
+      const autoCsv = localStorage.getItem("autoExportCsv") === "true";
+      if (autoXlsx || autoCsv) {
+        setHasAutoExported(true);
+        setShowAfterActionReport(true);
+      }
+    }
+  }, [isComplete, isTeardown, status, hasAutoExported]);
+
+  // Handle auto-export download triggering when data is loaded
+  useEffect(() => {
+    if (afterActionReport && showAfterActionReport) {
+      const autoXlsx = localStorage.getItem("autoExportXlsx") === "true";
+      const autoCsv = localStorage.getItem("autoExportCsv") === "true";
+      
+      const hasDownloadedKey = `autoExported_${instanceId}`;
+      const alreadyDownloaded = sessionStorage.getItem(hasDownloadedKey) === "true";
+      
+      if (!alreadyDownloaded) {
+        sessionStorage.setItem(hasDownloadedKey, "true");
+        if (autoXlsx) {
+          setTimeout(() => {
+            exportToXLSX();
+          }, 600);
+        }
+        if (autoCsv) {
+          setTimeout(() => {
+            exportToCSV();
+          }, 800);
+        }
+      }
+    }
+  }, [afterActionReport, showAfterActionReport, instanceId]);
 
   // Merge completed phases with the full phase list
   const completedPhases = status?.output?.phases ?? [];
