@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Button,
@@ -109,6 +109,27 @@ const MILESTONE_ANIMATION_CSS = `
   background-image: linear-gradient(45deg, rgba(0,0,0,0.18) 25%, transparent 25%, transparent 50%, rgba(0,0,0,0.18) 50%, rgba(0,0,0,0.18) 75%, transparent 75%, transparent) !important;
   background-size: 40px 40px !important;
   animation: gantt-stripes 1.2s linear infinite !important;
+}
+@keyframes springOut {
+  0% {
+    transform: scale(0.9) translateY(40px);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.04) translateY(-8px);
+    opacity: 0.85;
+  }
+  75% {
+    transform: scale(0.98) translateY(3px);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+.spring-active {
+  animation: springOut 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) both !important;
 }
 `;
 
@@ -422,6 +443,22 @@ export function PhaseMonitor() {
   const [compressCompleted, setCompressCompleted] = useState(false);
   const [afterActionReport, setAfterActionReport] = useState<AfterActionReportResult | null>(null);
   const [afterActionLoading, setAfterActionLoading] = useState(false);
+  const afterActionCardRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to After Action report card when it is opened
+  useEffect(() => {
+    if (showAfterActionReport) {
+      const t = setTimeout(() => {
+        if (afterActionCardRef.current) {
+          afterActionCardRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [showAfterActionReport]);
 
   const isMock = instanceId ? isMockInstance(instanceId) : false;
 
@@ -1089,7 +1126,7 @@ export function PhaseMonitor() {
                 boxShadow: `0 0 4px ${tokens.colorPaletteBlueBorderActive}`
               }}
             >
-              {showAfterActionReport ? "Hide Security Audit" : "Post Deployment Results"}
+              {showAfterActionReport ? "Hide Artifacts & Security" : "Deployment Artifacts & Security"}
             </Button>
           )}
           {isRunning && (
@@ -1871,12 +1908,16 @@ export function PhaseMonitor() {
       )}
 
       {showAfterActionReport && (
-        <Card style={{ marginTop: tokens.spacingVerticalL, padding: tokens.spacingVerticalL, border: `1px solid ${tokens.colorPaletteBlueBorderActive}`, boxShadow: `0 0 16px ${tokens.colorPaletteBlueBorderActive}` }}>
+        <Card
+          ref={afterActionCardRef}
+          className="spring-active"
+          style={{ marginTop: tokens.spacingVerticalL, padding: tokens.spacingVerticalL, border: `1px solid ${tokens.colorPaletteBlueBorderActive}`, boxShadow: `0 0 16px ${tokens.colorPaletteBlueBorderActive}` }}
+        >
           <CardHeader
             header={
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <ShieldRegular style={{ color: tokens.colorPaletteBlueBorderActive, fontSize: "24px" }} />
-                <Subtitle1 style={{ fontWeight: "bold" }}>After Action Security & Resources Report</Subtitle1>
+                <Subtitle1 style={{ fontWeight: "bold" }}>Deployment Artifacts & Security</Subtitle1>
               </div>
             }
             description={
@@ -1974,6 +2015,18 @@ export function PhaseMonitor() {
                   </Button>
                 )}
               </div>
+
+              {/* Deployed Resources */}
+              {!isMock && (
+                <DeployedResourcesPanel
+                  deployedResources={deployedResources}
+                  resourcesLoading={resourcesLoading}
+                  resourceGroupName={status?.customStatus?.resourceGroupName as string || ""}
+                  azurePortalUrl={(status?.customStatus as Record<string, unknown>)?.links
+                    ? ((status?.customStatus as Record<string, unknown>)?.links as Record<string, string>)?.azurePortal
+                    : undefined}
+                />
+              )}
             </div>
           ) : (
             <div style={{ padding: "20px", textAlign: "center" }}>
@@ -1981,18 +2034,6 @@ export function PhaseMonitor() {
             </div>
           )}
         </Card>
-      )}
-
-      {/* Deployed Resources */}
-      {(isComplete || completedCount > 0) && !isMock && (
-        <DeployedResourcesPanel
-          deployedResources={deployedResources}
-          resourcesLoading={resourcesLoading}
-          resourceGroupName={status?.customStatus?.resourceGroupName as string || ""}
-          azurePortalUrl={(status?.customStatus as Record<string, unknown>)?.links
-            ? ((status?.customStatus as Record<string, unknown>)?.links as Record<string, string>)?.azurePortal
-            : undefined}
-        />
       )}
 
       {/* Floating redeploy button - bottom left (shown on failure/cancel) */}
