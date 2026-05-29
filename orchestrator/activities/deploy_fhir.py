@@ -45,15 +45,38 @@ def run(config: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             pass
 
+    skip_fhir = config.get("skip_fhir", False)
+    skip_dicom = config.get("skip_dicom", False)
+
+    if skip_fhir and skip_dicom:
+        logger.info("Skipping FHIR and DICOM infrastructure (both selected to skip).")
+        return {
+            "phase": "Phase 2: FHIR Service & Data Loading",
+            "duration_seconds": time.time() - start,
+            "resources": {
+                "fhir_service_url": "",
+                "fhir_storage_account": "",
+                "fhir_managed_identity_id": "",
+                "synthea_state": "Skipped",
+                "synthea_duration": 0,
+                "loader_state": "Skipped",
+                "loader_duration": 0,
+            },
+        }
+
     # 1. Deploy FHIR infrastructure
     logger.info("Deploying FHIR infrastructure…")
+    parameters = {}
+    if admin_group_id:
+        parameters["adminGroupObjectId"] = admin_group_id
+    if skip_fhir:
+        parameters["deployFhirService"] = False
+
     fhir_outputs = client.deploy_bicep(
         resource_group=rg_name,
         deployment_name="fhir-infra",
         template_file="fhir-infra.bicep",
-        parameters={
-            "adminGroupObjectId": admin_group_id,
-        },
+        parameters=parameters,
         tags=tags,
     )
 
@@ -64,7 +87,7 @@ def run(config: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
     logger.info("FHIR Service URL: %s", fhir_service_url)
 
     # 2. Build Synthea container image
-    if acr_name:
+    if acr_name and not skip_fhir:
         import os
 
         synthea_context = os.path.join(
@@ -83,40 +106,42 @@ def run(config: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
             logger.warning("Synthea image build: %s", e)
 
     # 3. Deploy and run Synthea job
-    logger.info("Running Synthea patient generator (%d patients)…", patient_count)
-    synthea_outputs = client.deploy_bicep(
-        resource_group=rg_name,
-        deployment_name="synthea-job",
-        template_file="synthea-job.bicep",
-        parameters={
-            "acrName": acr_name,
-            "storageAccountName": fhir_storage_account,
-            "patientCount": patient_count,
-        },
-        tags=tags,
-    )
-
-    # Wait for Synthea container to complete
-    synthea_result = client.wait_for_aci_job(
-        resource_group=rg_name,
-        container_group_name="synthea-generator-job",
-        timeout_minutes=45,
-    )
-    logger.info(
-        "Synthea completed: %s (exit=%d, %.0fs)",
-        synthea_result["state"],
-        synthea_result["exit_code"],
-        synthea_result["duration_seconds"],
-    )
-
-    if synthea_result["state"] != "Succeeded" and synthea_result["exit_code"] != 0:
-        raise RuntimeError(
-            f"Synthea failed: {synthea_result['state']}, "
-            f"exit_code={synthea_result['exit_code']}"
+    synthea_result = {"state": "Skipped", "exit_code": 0, "duration_seconds": 0.0}
+    if not skip_fhir:
+        logger.info("Running Synthea patient generator (%d patients)…", patient_count)
+        synthea_outputs = client.deploy_bicep(
+            resource_group=rg_name,
+            deployment_name="synthea-job",
+            template_file="synthea-job.bicep",
+            parameters={
+                "acrName": acr_name,
+                "storageAccountName": fhir_storage_account,
+                "patientCount": patient_count,
+            },
+            tags=tags,
         )
 
+        # Wait for Synthea container to complete
+        synthea_result = client.wait_for_aci_job(
+            resource_group=rg_name,
+            container_group_name="synthea-generator-job",
+            timeout_minutes=45,
+        )
+        logger.info(
+            "Synthea completed: %s (exit=%d, %.0fs)",
+            synthea_result["state"],
+            synthea_result["exit_code"],
+            synthea_result["duration_seconds"],
+        )
+
+        if synthea_result["state"] != "Succeeded" and synthea_result["exit_code"] != 0:
+            raise RuntimeError(
+                f"Synthea failed: {synthea_result['state']}, "
+                f"exit_code={synthea_result['exit_code']}"
+            )
+
     # 4. Build FHIR Loader image
-    if acr_name:
+    if acr_name and not skip_fhir:
         fhir_loader_context = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "fhir-loader",
@@ -133,36 +158,38 @@ def run(config: dict[str, Any], resources: dict[str, Any]) -> dict[str, Any]:
             logger.warning("FHIR Loader image build: %s", e)
 
     # 5. Deploy and run FHIR Loader job
-    logger.info("Running FHIR Loader…")
-    client.deploy_bicep(
-        resource_group=rg_name,
-        deployment_name="fhir-loader-job",
-        template_file="fhir-loader-job.bicep",
-        parameters={
-            "acrName": acr_name,
-            "storageAccountName": fhir_storage_account,
-            "fhirServiceUrl": fhir_service_url,
-        },
-        tags=tags,
-    )
-
-    loader_result = client.wait_for_aci_job(
-        resource_group=rg_name,
-        container_group_name="fhir-loader-job",
-        timeout_minutes=60,
-    )
-    logger.info(
-        "FHIR Loader completed: %s (exit=%d, %.0fs)",
-        loader_result["state"],
-        loader_result["exit_code"],
-        loader_result["duration_seconds"],
-    )
-
-    if loader_result["state"] != "Succeeded" and loader_result["exit_code"] != 0:
-        raise RuntimeError(
-            f"FHIR Loader failed: {loader_result['state']}, "
-            f"exit_code={loader_result['exit_code']}"
+    loader_result = {"state": "Skipped", "exit_code": 0, "duration_seconds": 0.0}
+    if not skip_fhir:
+        logger.info("Running FHIR Loader…")
+        client.deploy_bicep(
+            resource_group=rg_name,
+            deployment_name="fhir-loader-job",
+            template_file="fhir-loader-job.bicep",
+            parameters={
+                "acrName": acr_name,
+                "storageAccountName": fhir_storage_account,
+                "fhirServiceUrl": fhir_service_url,
+            },
+            tags=tags,
         )
+
+        loader_result = client.wait_for_aci_job(
+            resource_group=rg_name,
+            container_group_name="fhir-loader-job",
+            timeout_minutes=60,
+        )
+        logger.info(
+            "FHIR Loader completed: %s (exit=%d, %.0fs)",
+            loader_result["state"],
+            loader_result["exit_code"],
+            loader_result["duration_seconds"],
+        )
+
+        if loader_result["state"] != "Succeeded" and loader_result["exit_code"] != 0:
+            raise RuntimeError(
+                f"FHIR Loader failed: {loader_result['state']}, "
+                f"exit_code={loader_result['exit_code']}"
+            )
 
     duration = time.time() - start
 

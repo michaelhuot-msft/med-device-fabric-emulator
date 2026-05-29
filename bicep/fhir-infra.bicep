@@ -10,6 +10,7 @@ param fhirServiceName string = 'fhir${uniqueString(resourceGroup().id)}'
 param storageAccountName string = 'stfhir${uniqueString(resourceGroup().id)}'
 param adminGroupObjectId string = ''
 param resourceTags object = {}
+param deployFhirService bool = true
 
 // Storage Account for Synthea output (ADLS Gen 2 with Hierarchical Namespace)
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
@@ -75,7 +76,7 @@ resource healthWorkspace 'Microsoft.HealthcareApis/workspaces@2023-11-01' = {
 }
 
 // FHIR Service (R4)
-resource fhirService 'Microsoft.HealthcareApis/workspaces/fhirservices@2023-11-01' = {
+resource fhirService 'Microsoft.HealthcareApis/workspaces/fhirservices@2023-11-01' = if (deployFhirService) {
   parent: healthWorkspace
   name: fhirServiceName
   location: location
@@ -107,8 +108,8 @@ resource fhirService 'Microsoft.HealthcareApis/workspaces/fhirservices@2023-11-0
 // ============================================
 
 // FHIR Data Contributor role for admin group (read/write FHIR data)
-resource fhirDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(adminGroupObjectId)) {
-  name: guid(fhirService.id, adminGroupObjectId, '5a1fc7df-4bf1-4951-a576-89034ee01acd')
+resource fhirDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(adminGroupObjectId) && deployFhirService) {
+  name: guid(deployFhirService ? fhirService.id : 'fhirServicePlaceholder', adminGroupObjectId, '5a1fc7df-4bf1-4951-a576-89034ee01acd')
   scope: fhirService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd') // FHIR Data Contributor
@@ -118,8 +119,8 @@ resource fhirDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-0
 }
 
 // FHIR Data Reader role for admin group (redundant with contributor but explicit)
-resource fhirDataReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(adminGroupObjectId)) {
-  name: guid(fhirService.id, adminGroupObjectId, '4c8d0bbc-75d3-4935-991f-5f3c56d81508')
+resource fhirDataReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(adminGroupObjectId) && deployFhirService) {
+  name: guid(deployFhirService ? fhirService.id : 'fhirServicePlaceholder', adminGroupObjectId, '4c8d0bbc-75d3-4935-991f-5f3c56d81508')
   scope: fhirService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4c8d0bbc-75d3-4935-991f-5f3c56d81508') // FHIR Data Reader
@@ -196,8 +197,8 @@ resource aciStorageBlobContributor 'Microsoft.Authorization/roleAssignments@2022
 }
 
 // FHIR Data Contributor — Loader needs to write patients, devices, and associations
-resource aciFhirDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(fhirService.id, aciIdentity.id, '5a1fc7df-4bf1-4951-a576-89034ee01acd')
+resource aciFhirDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployFhirService) {
+  name: guid(deployFhirService ? fhirService.id : 'fhirServicePlaceholder', aciIdentity.id, '5a1fc7df-4bf1-4951-a576-89034ee01acd')
   scope: fhirService
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5a1fc7df-4bf1-4951-a576-89034ee01acd')
@@ -212,20 +213,20 @@ resource aciFhirDataContributor 'Microsoft.Authorization/roleAssignments@2022-04
 // The FHIR service uses its system-assigned MI to write NDJSON to the
 // fhir-export container during $export operations.
 
-resource fhirMiStorageBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, fhirService.id, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+resource fhirMiStorageBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployFhirService) {
+  name: guid(storageAccount.id, deployFhirService ? fhirService.id : 'fhirServicePlaceholder', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: fhirService.identity.principalId
+    principalId: deployFhirService ? fhirService.identity.principalId : 'fhirServicePlaceholderPrincipal'
     principalType: 'ServicePrincipal'
   }
 }
 
 // Outputs
 output workspaceName string = healthWorkspace.name
-output fhirServiceName string = fhirService.name
-output fhirServiceUrl string = 'https://${workspaceName}-${fhirServiceName}.fhir.azurehealthcareapis.com'
+output fhirServiceName string = deployFhirService ? fhirService.name : ''
+output fhirServiceUrl string = deployFhirService ? 'https://${workspaceName}-${fhirServiceName}.fhir.azurehealthcareapis.com' : ''
 output storageAccountName string = storageAccount.name
 output containerName string = syntheaContainer.name
 output exportContainerName string = fhirExportContainer.name

@@ -6,7 +6,8 @@ param (
     [hashtable]$Tags = @{},
     [string]$SpnClientId = "",
     [string]$SpnClientSecret = "",
-    [string]$SpnTenantId = ""
+    [string]$SpnTenantId = "",
+    [switch]$SkipTelemetry
 )
 
 $ErrorActionPreference = "Stop"
@@ -402,11 +403,16 @@ if ($existingInfraOutputs) {
         }
     }
 
+    $bicepParams = @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", $tagsParamRef)
+    if ($SkipTelemetry) {
+        $bicepParams += @("--parameters", "deployEventHubs=false", "--parameters", "deployAcr=false")
+    }
+
     $infra = Invoke-ArmGroupDeployment `
         -ResourceGroup $ResourceGroupName `
         -DeploymentName "infra" `
         -TemplateFile "bicep/infra.bicep" `
-        -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", $tagsParamRef) `
+        -ParameterArgs $bicepParams `
         -Query "properties.outputs" `
         -OnlyShowErrors
 
@@ -419,7 +425,7 @@ if ($existingInfraOutputs) {
                 -ResourceGroup $ResourceGroupName `
                 -DeploymentName "infra" `
                 -TemplateFile "bicep/infra.bicep" `
-                -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", $tagsParamRef) `
+                -ParameterArgs $bicepParams `
                 -Query "properties.outputs" `
                 -OnlyShowErrors
             if ($LASTEXITCODE -ne 0) {
@@ -459,12 +465,15 @@ if ($SpnClientId -and $SpnClientSecret) {
     Write-Host "  ✓ SPN credentials saved as Key Vault secrets" -ForegroundColor Green
 }
 
-if (-not $acrName) {
-    Write-Host "ERROR: Infrastructure deployment failed - ACR name is empty" -ForegroundColor Red
-    exit 1
+if (-not $SkipTelemetry) {
+    if (-not $acrName) {
+        Write-Host "ERROR: Infrastructure deployment failed - ACR name is empty" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Infrastructure ready. Event Hub Namespace: $ehNamespace" -ForegroundColor Green
+} else {
+    Write-Host "Infrastructure ready (Telemetry/ACR skipped)." -ForegroundColor Green
 }
-
-Write-Host "Infrastructure ready. Event Hub Namespace: $ehNamespace" -ForegroundColor Green
 
 $existingEmulator = az deployment group show --resource-group $ResourceGroupName --name "emulator" --query "properties.provisioningState" -o tsv 2>$null
 $skipEmulatorAndBuild = $false
@@ -473,7 +482,7 @@ if ($LASTEXITCODE -eq 0 -and $existingEmulator -eq "Succeeded" -and $existingInf
     $skipEmulatorAndBuild = $true
 }
 
-if (-not $skipEmulatorAndBuild) {
+if (-not $skipEmulatorAndBuild -and -not $SkipTelemetry) {
     Write-Host "--- STEP 3: BUILDING IMAGE IN AZURE ---" -ForegroundColor Cyan
     Write-Host "  ⏳ This is a long running operation (2-5 min). Building container image in ACR..." -ForegroundColor Yellow
     # Force UTF-8 to avoid charmap encoding errors on Windows (az CLI uses colorama → cp1252 crash)

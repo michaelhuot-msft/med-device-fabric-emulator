@@ -49,11 +49,19 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     client.ensure_resource_group(rg_name, location, tags)
 
     # 2. Deploy infra.bicep
+    skip_fabric = config.get("skip_fabric", False)
+    parameters = {}
+    if admin_group_id:
+        parameters["adminGroupObjectId"] = admin_group_id
+    if skip_fabric:
+        parameters["deployEventHubs"] = False
+        parameters["deployAcr"] = False
+
     infra_outputs = client.deploy_bicep(
         resource_group=rg_name,
         deployment_name="infra",
         template_file="infra.bicep",
-        parameters={"adminGroupObjectId": admin_group_id} if admin_group_id else {},
+        parameters=parameters,
         tags=tags,
     )
 
@@ -65,7 +73,7 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
     managed_identity_client_id = infra_outputs.get("managedIdentityClientId", "")
 
     # 3. Build emulator container image
-    if acr_name:
+    if acr_name and not skip_fabric:
         import os
 
         emulator_context = os.path.join(
@@ -84,17 +92,19 @@ def run(config: dict[str, Any]) -> dict[str, Any]:
             logger.warning("ACR build failed (may already exist): %s", e)
 
     # 4. Deploy emulator.bicep
-    emulator_outputs = client.deploy_bicep(
-        resource_group=rg_name,
-        deployment_name="emulator",
-        template_file="emulator.bicep",
-        parameters={
-            "acrName": acr_name,
-            "eventHubNamespace": event_hub_namespace,
-            "eventHubName": event_hub_name,
-        },
-        tags=tags,
-    )
+    emulator_outputs = {}
+    if not skip_fabric:
+        emulator_outputs = client.deploy_bicep(
+            resource_group=rg_name,
+            deployment_name="emulator",
+            template_file="emulator.bicep",
+            parameters={
+                "acrName": acr_name,
+                "eventHubNamespace": event_hub_namespace,
+                "eventHubName": event_hub_name,
+            },
+            tags=tags,
+        )
 
     duration = time.time() - start
 

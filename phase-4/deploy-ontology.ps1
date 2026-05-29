@@ -35,8 +35,21 @@
 param (
     [string]$FabricWorkspaceName = "med-device-rti-hds",
     [string]$OntologyName        = "ClinicalDeviceOntology",
-    [string]$FabricApiBase       = "https://api.fabric.microsoft.com/v1"
+    [string]$FabricApiBase       = "https://api.fabric.microsoft.com/v1",
+    [switch]$IncludeFhir,
+    [switch]$IncludeDicom,
+    [switch]$IncludeTelemetry,
+    [switch]$IncludeGold
 )
+
+# Default to all if none are specified
+$allSwitchesFalse = -not $IncludeFhir -and -not $IncludeDicom -and -not $IncludeTelemetry -and -not $IncludeGold
+if ($allSwitchesFalse) {
+    $IncludeFhir = $true
+    $IncludeDicom = $true
+    $IncludeTelemetry = $true
+    $IncludeGold = $true
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -167,69 +180,87 @@ $workspaceId = $ws.id
 Write-Host "  ✓ Workspace: $FabricWorkspaceName ($workspaceId)" -ForegroundColor Green
 
 # --- Silver Lakehouse ---
-$lakehouses = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/lakehouses"
-$silverLh = $lakehouses.value | Where-Object { $_.displayName -match "[Ss]ilver" }
-if (-not $silverLh) {
-    Write-Host "ERROR: Silver Lakehouse not found in workspace." -ForegroundColor Red
-    exit 1
+$silverLhId = $null
+$silverLhName = $null
+if ($IncludeFhir -or $IncludeDicom -or $IncludeTelemetry) {
+    $lakehouses = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/lakehouses"
+    $silverLh = $lakehouses.value | Where-Object { $_.displayName -match "[Ss]ilver" }
+    if (-not $silverLh) {
+        Write-Host "ERROR: Silver Lakehouse not found in workspace." -ForegroundColor Red
+        exit 1
+    }
+    if ($silverLh -is [array]) { $silverLh = $silverLh[0] }
+    $silverLhId   = $silverLh.id
+    $silverLhName = $silverLh.displayName
+    Write-Host "  ✓ Silver Lakehouse: $silverLhName ($silverLhId)" -ForegroundColor Green
 }
-if ($silverLh -is [array]) { $silverLh = $silverLh[0] }
-$silverLhId   = $silverLh.id
-$silverLhName = $silverLh.displayName
-Write-Host "  ✓ Silver Lakehouse: $silverLhName ($silverLhId)" -ForegroundColor Green
 
-# --- Eventhouse ---
-$eventhouses = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/eventhouses"
-$eventhouse = $eventhouses.value | Where-Object { $_.displayName -match "Masimo" }
-if (-not $eventhouse) {
-    $eventhouse = $eventhouses.value | Select-Object -First 1
-}
-if (-not $eventhouse) {
-    Write-Host "ERROR: Eventhouse not found in workspace." -ForegroundColor Red
-    exit 1
-}
-if ($eventhouse -is [array]) { $eventhouse = $eventhouse[0] }
-$eventhouseId   = $eventhouse.id
-$eventhouseName = $eventhouse.displayName
-Write-Host "  ✓ Eventhouse: $eventhouseName ($eventhouseId)" -ForegroundColor Green
+# --- Eventhouse & KQL Database ---
+$eventhouseId = $null
+$eventhouseName = $null
+$kqlDbId = $null
+$kqlDbName = $null
+$kustoUri = $null
 
-# --- KQL Database ---
-$kqlDbs = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/kqlDatabases"
-$kqlDb = $kqlDbs.value | Where-Object { $_.displayName -eq "MasimoKQLDB" -or $_.displayName -eq $eventhouseName }
-if (-not $kqlDb) { $kqlDb = $kqlDbs.value | Select-Object -First 1 }
-if (-not $kqlDb) {
-    Write-Host "ERROR: KQL Database not found." -ForegroundColor Red
-    exit 1
-}
-if ($kqlDb -is [array]) { $kqlDb = $kqlDb[0] }
-$kqlDbId   = $kqlDb.id
-$kqlDbName = $kqlDb.displayName
+if ($IncludeTelemetry) {
+    Write-Host "  Discovering Eventhouse..." -ForegroundColor White
+    $eventhouses = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/eventhouses"
+    $eventhouse = $eventhouses.value | Where-Object { $_.displayName -match "Masimo" }
+    if (-not $eventhouse) {
+        $eventhouse = $eventhouses.value | Select-Object -First 1
+    }
+    if (-not $eventhouse) {
+        Write-Host "ERROR: Eventhouse not found in workspace." -ForegroundColor Red
+        exit 1
+    }
+    if ($eventhouse -is [array]) { $eventhouse = $eventhouse[0] }
+    $eventhouseId   = $eventhouse.id
+    $eventhouseName = $eventhouse.displayName
+    Write-Host "  ✓ Eventhouse: $eventhouseName ($eventhouseId)" -ForegroundColor Green
 
-$kqlDbDetail = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/kqlDatabases/$kqlDbId"
-$kustoUri = $kqlDbDetail.queryServiceUri
-if (-not $kustoUri) { $kustoUri = $kqlDbDetail.queryUri }
-if (-not $kustoUri) { try { $kustoUri = $kqlDbDetail.properties.queryUri } catch {} }
-if (-not $kustoUri) { try { $kustoUri = $kqlDbDetail.properties.queryServiceUri } catch {} }
-if (-not $kustoUri) {
-    Write-Host "ERROR: Cannot discover Kusto query URI. Required for Eventhouse data bindings." -ForegroundColor Red
-    exit 1
+    # --- KQL Database ---
+    $kqlDbs = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/kqlDatabases"
+    $kqlDb = $kqlDbs.value | Where-Object { $_.displayName -eq "MasimoKQLDB" -or $_.displayName -eq $eventhouseName }
+    if (-not $kqlDb) { $kqlDb = $kqlDbs.value | Select-Object -First 1 }
+    if (-not $kqlDb) {
+        Write-Host "ERROR: KQL Database not found." -ForegroundColor Red
+        exit 1
+    }
+    if ($kqlDb -is [array]) { $kqlDb = $kqlDb[0] }
+    $kqlDbId   = $kqlDb.id
+    $kqlDbName = $kqlDb.displayName
+
+    $kqlDbDetail = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/kqlDatabases/$kqlDbId"
+    $kustoUri = $kqlDbDetail.queryServiceUri
+    if (-not $kustoUri) { $kustoUri = $kqlDbDetail.queryUri }
+    if (-not $kustoUri) { try { $kustoUri = $kqlDbDetail.properties.queryUri } catch {} }
+    if (-not $kustoUri) { try { $kustoUri = $kqlDbDetail.properties.queryServiceUri } catch {} }
+    if (-not $kustoUri) {
+        Write-Host "ERROR: Cannot discover Kusto query URI. Required for Eventhouse data bindings." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  ✓ KQL Database: $kqlDbName ($kqlDbId)" -ForegroundColor Green
+    Write-Host "  ✓ Kusto URI: $kustoUri" -ForegroundColor Green
 }
-Write-Host "  ✓ KQL Database: $kqlDbName ($kqlDbId)" -ForegroundColor Green
-Write-Host "  ✓ Kusto URI: $kustoUri" -ForegroundColor Green
 
 # --- Gold (Reporting) Lakehouse ---
-$goldLh = $lakehouses.value | Where-Object { $_.displayName -match "[Rr]eporting.*[Gg]old" }
-if (-not $goldLh) {
-    $goldLh = $lakehouses.value | Where-Object { $_.displayName -match "[Gg]old" }
-}
-if ($goldLh) {
-    if ($goldLh -is [array]) { $goldLh = $goldLh[0] }
-    $goldLhId   = $goldLh.id
-    $goldLhName = $goldLh.displayName
-    Write-Host "  ✓ Gold Lakehouse: $goldLhName ($goldLhId)" -ForegroundColor Green
-} else {
-    Write-Host "  ⚠ Gold Lakehouse not found — claims/quality entities will be skipped" -ForegroundColor Yellow
-    $goldLhId = $null
+$goldLhId = $null
+$goldLhName = $null
+if ($IncludeGold) {
+    $lakehouses = Invoke-FabricApi -Endpoint "/workspaces/$workspaceId/lakehouses"
+    $goldLh = $lakehouses.value | Where-Object { $_.displayName -match "[Rr]eporting.*[Gg]old" }
+    if (-not $goldLh) {
+        $goldLh = $lakehouses.value | Where-Object { $_.displayName -match "[Gg]old" }
+    }
+    if ($goldLh) {
+        if ($goldLh -is [array]) { $goldLh = $goldLh[0] }
+        $goldLhId   = $goldLh.id
+        $goldLhName = $goldLh.displayName
+        Write-Host "  ✓ Gold Lakehouse: $goldLhName ($goldLhId)" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠ Gold Lakehouse not found — claims/quality entities will be skipped" -ForegroundColor Yellow
+        $goldLhId = $null
+    }
 }
 
 # --- Check for existing ontology ---
@@ -281,7 +312,6 @@ function LhBind([string]$bindings, [string]$tbl) {
 }
 
 # Helper: build an Eventhouse TimeSeries data binding JSON
-# NOTE: Eventhouse sources MUST use TimeSeries binding type (NonTimeSeries is not allowed for KustoTable)
 function EhBind([string]$tsCol, [string]$bindings, [string]$tbl) {
     $bid = [guid]::NewGuid().ToString()
     return @{ id = $bid; json = '{"id":"'+$bid+'","dataBindingConfiguration":{"dataBindingType":"TimeSeries","timestampColumnName":"'+$tsCol+'","propertyBindings":['+$bindings+'],"sourceTableProperties":{"sourceType":"KustoTable","workspaceId":"'+$workspaceId+'","itemId":"'+$eventhouseId+'","clusterUri":"'+$kustoUri+'","databaseName":"'+$kqlDbName+'","sourceTableName":"'+$tbl+'"}}}' }
@@ -298,81 +328,125 @@ function LhCtx([string]$tbl, [string]$sc, [string]$sp, [string]$tc, [string]$tp)
     return @{ id = $cid; json = '{"id":"'+$cid+'","dataBindingTable":{"sourceType":"LakehouseTable","workspaceId":"'+$workspaceId+'","itemId":"'+$silverLhId+'","sourceTableName":"'+$tbl+'","sourceSchema":"dbo"},"sourceKeyRefBindings":[{"sourceColumnName":"'+$sc+'","targetPropertyId":"'+$sp+'"}],"targetKeyRefBindings":[{"sourceColumnName":"'+$tc+'","targetPropertyId":"'+$tp+'"}]}' }
 }
 
-# --- Entity Types ---
+# --- Entity & Relationship Construction ---
+$ets = @()
+$rels = @()
 
-# Patient
-$eP = NextId; $pPid = NextId; $pPnm = NextId; $pPgn = NextId; $pPbd = NextId
-$ejP = EtJson $eP "Patient" $pPid $pPnm ((PropJson $pPid "patientId"),(PropJson $pPnm "patientName"),(PropJson $pPgn "gender"),(PropJson $pPbd "birthDate") -join ',')
-$dbP = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pPid+'"},{"sourceColumnName":"name_text","targetPropertyId":"'+$pPnm+'"},{"sourceColumnName":"gender","targetPropertyId":"'+$pPgn+'"},{"sourceColumnName":"birthDate","targetPropertyId":"'+$pPbd+'"}') "Patient"
-
-# Device
-$eD = NextId; $pDid = NextId; $pDty = NextId; $pDst = NextId
-$ejD = EtJson $eD "Device" $pDid $pDid ((PropJson $pDid "deviceId"),(PropJson $pDty "deviceType"),(PropJson $pDst "deviceStatus") -join ',')
-$dbD = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pDid+'"},{"sourceColumnName":"type_string","targetPropertyId":"'+$pDty+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pDst+'"}') "Device"
-
-# Encounter
-$eE = NextId; $pEid = NextId; $pEcl = NextId; $pEst = NextId; $pEps = NextId; $pEpr = NextId
-$ejE = EtJson $eE "Encounter" $pEid $pEid ((PropJson $pEid "encounterId"),(PropJson $pEcl "encounterClass"),(PropJson $pEst "encounterStatus"),(PropJson $pEps "periodStart"),(PropJson $pEpr "patientRef") -join ',')
-$dbE = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pEid+'"},{"sourceColumnName":"class_string","targetPropertyId":"'+$pEcl+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pEst+'"},{"sourceColumnName":"period_start","targetPropertyId":"'+$pEps+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pEpr+'"}') "Encounter"
-
-# Condition
-$eC = NextId; $pCid = NextId; $pCdn = NextId; $pCcs = NextId; $pCpr = NextId
-$ejC = EtJson $eC "Condition" $pCid $pCdn ((PropJson $pCid "conditionId"),(PropJson $pCdn "conditionName"),(PropJson $pCcs "clinicalStatus"),(PropJson $pCpr "patientRef") -join ',')
-$dbC = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pCid+'"},{"sourceColumnName":"code_string","targetPropertyId":"'+$pCdn+'"},{"sourceColumnName":"clinicalStatus_string","targetPropertyId":"'+$pCcs+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pCpr+'"}') "Condition"
-
-# MedicationRequest
-$eM = NextId; $pMid = NextId; $pMmd = NextId; $pMst = NextId; $pMau = NextId; $pMpr = NextId
-$ejM = EtJson $eM "MedRequest" $pMid $pMmd ((PropJson $pMid "medicationRequestId"),(PropJson $pMmd "medication"),(PropJson $pMst "medStatus"),(PropJson $pMau "authoredOn"),(PropJson $pMpr "patientRef") -join ',')
-$dbM = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pMid+'"},{"sourceColumnName":"medicationCodeableConcept_string","targetPropertyId":"'+$pMmd+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pMst+'"},{"sourceColumnName":"authoredOn","targetPropertyId":"'+$pMau+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pMpr+'"}') "MedicationRequest"
-
-# Observation
-$eO = NextId; $pOid = NextId; $pOco = NextId; $pOvl = NextId; $pOun = NextId; $pOef = NextId; $pOpr = NextId
-$ejO = EtJson $eO "Observation" $pOid $pOco ((PropJson $pOid "observationId"),(PropJson $pOco "observationCode"),(PropJson $pOvl "observationValue"),(PropJson $pOun "observationUnit"),(PropJson $pOef "effectiveDateTime"),(PropJson $pOpr "patientRef") -join ',')
-$dbO = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pOid+'"},{"sourceColumnName":"code_string","targetPropertyId":"'+$pOco+'"},{"sourceColumnName":"valueQuantity_value","targetPropertyId":"'+$pOvl+'"},{"sourceColumnName":"valueQuantity_unit","targetPropertyId":"'+$pOun+'"},{"sourceColumnName":"effectiveDateTime","targetPropertyId":"'+$pOef+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pOpr+'"}') "Observation"
-
-# DeviceAssociation
-$eA = NextId; $pAid = NextId; $pAdr = NextId; $pApn = NextId; $pApi = NextId
-$ejA = EtJson $eA "DeviceAssoc" $pAid $pApn ((PropJson $pAid "associationId"),(PropJson $pAdr "deviceRef"),(PropJson $pApn "assocPatientName"),(PropJson $pApi "assocPatientId") -join ',')
-$dbA = LhBind ('{"sourceColumnName":"id","targetPropertyId":"'+$pAid+'"},{"sourceColumnName":"device_ref","targetPropertyId":"'+$pAdr+'"},{"sourceColumnName":"patient_name","targetPropertyId":"'+$pApn+'"},{"sourceColumnName":"patient_id","targetPropertyId":"'+$pApi+'"}') "DeviceAssociation"
-
-# ClinicalAlert (Eventhouse TimeSeries binding — KustoTable requires TimeSeries)
-$eAl = NextId; $pAlid = NextId; $pAltm = NextId; $pAldi = NextId; $pAlpi = NextId
-$pAlpn = NextId; $pAltr = NextId; $pAlty = NextId; $pAlmg = NextId
-$ejAl = EtJson $eAl "ClinicalAlert" $pAlid $pAlmg `
-    ((PropJson $pAlid "alertId"),(PropJson $pAldi "alertDeviceId"),(PropJson $pAlpi "alertPatientId"),(PropJson $pAlpn "alertPatientName"),(PropJson $pAltr "alertTier"),(PropJson $pAlty "alertType"),(PropJson $pAlmg "alertMessage") -join ',') `
-    ((PropJson $pAltm "alertTime" "DateTime") -join ',')
-$dbAl = EhBind "alert_time" ('{"sourceColumnName":"alert_id","targetPropertyId":"'+$pAlid+'"},{"sourceColumnName":"alert_time","targetPropertyId":"'+$pAltm+'"},{"sourceColumnName":"device_id","targetPropertyId":"'+$pAldi+'"},{"sourceColumnName":"patient_id","targetPropertyId":"'+$pAlpi+'"},{"sourceColumnName":"patient_name","targetPropertyId":"'+$pAlpn+'"},{"sourceColumnName":"alert_tier","targetPropertyId":"'+$pAltr+'"},{"sourceColumnName":"alert_type","targetPropertyId":"'+$pAlty+'"},{"sourceColumnName":"message","targetPropertyId":"'+$pAlmg+'"}') "AlertHistory"
-
-# DeviceTelemetry (Eventhouse TimeSeries binding)
-$eT = NextId; $pTdi = NextId; $pTts = NextId; $pTspo2 = NextId; $pTpr = NextId; $pTpi = NextId; $pTpvi = NextId
-$ejT = EtJson $eT "DeviceTelemetry" $pTdi $pTdi `
-    (PropJson $pTdi "telemetryDeviceId") `
-    ((PropJson $pTts "telemetryTimestamp" "DateTime"),(PropJson $pTspo2 "spo2" "Double"),(PropJson $pTpr "pulseRate" "Double"),(PropJson $pTpi "perfusionIndex" "Double"),(PropJson $pTpvi "plethVariability" "Double") -join ',')
-$dbT = EhBind "timestamp" ('{"sourceColumnName":"device_id","targetPropertyId":"'+$pTdi+'"},{"sourceColumnName":"timestamp","targetPropertyId":"'+$pTts+'"},{"sourceColumnName":"telemetry.spo2","targetPropertyId":"'+$pTspo2+'"},{"sourceColumnName":"telemetry.pr","targetPropertyId":"'+$pTpr+'"},{"sourceColumnName":"telemetry.pi","targetPropertyId":"'+$pTpi+'"},{"sourceColumnName":"telemetry.pvi","targetPropertyId":"'+$pTpvi+'"}') "TelemetryRaw"
-
-# ============================================================================
-# CLAIMS & QUALITY ENTITIES (Gold Lakehouse — only if Gold LH exists)
-# ============================================================================
-
-# Helper: Gold Lakehouse data binding
-function GoldLhBind([string]$bindings, [string]$tbl) {
-    if (-not $goldLhId) { return $null }
-    $bid = [guid]::NewGuid().ToString()
-    return @{ id = $bid; json = '{"id":"'+$bid+'","dataBindingConfiguration":{"dataBindingType":"NonTimeSeries","propertyBindings":['+$bindings+'],"sourceTableProperties":{"sourceType":"LakehouseTable","workspaceId":"'+$workspaceId+'","itemId":"'+$goldLhId+'","sourceTableName":"'+$tbl+'","sourceSchema":"dbo"}}}' }
+# 1. Patient Entity (Include if either Clinical or DICOM is selected)
+if ($IncludeFhir -or $IncludeDicom) {
+    $eP = NextId; $pPid = NextId; $pPnm = NextId; $pPgn = NextId; $pPbd = NextId
+    $ejP = EtJson $eP "Patient" $pPid $pPnm ((PropJson $pPid "patientId"),(PropJson $pPnm "patientName"),(PropJson $pPgn "gender"),(PropJson $pPbd "birthDate") -join ',')
+    $dbP = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pPid+'"},{"sourceColumnName":"name_text","targetPropertyId":"'+$pPnm+'"},{"sourceColumnName":"gender","targetPropertyId":"'+$pPgn+'"},{"sourceColumnName":"birthDate","targetPropertyId":"'+$pPbd+'"}') "Patient"
+    $ets += @{id=$eP;j=$ejP;b=$dbP}
 }
 
-# Helper: Gold Lakehouse contextualization
-function GoldLhCtx([string]$tbl, [string]$sc, [string]$sp, [string]$tc, [string]$tp) {
-    if (-not $goldLhId) { return $null }
-    $cid = [guid]::NewGuid().ToString()
-    return @{ id = $cid; json = '{"id":"'+$cid+'","dataBindingTable":{"sourceType":"LakehouseTable","workspaceId":"'+$workspaceId+'","itemId":"'+$goldLhId+'","sourceTableName":"'+$tbl+'","sourceSchema":"dbo"},"sourceKeyRefBindings":[{"sourceColumnName":"'+$sc+'","targetPropertyId":"'+$sp+'"}],"targetKeyRefBindings":[{"sourceColumnName":"'+$tc+'","targetPropertyId":"'+$tp+'"}]}' }
+# 2. Clinical Ingestion Entities (FHIR)
+if ($IncludeFhir) {
+    # Encounter
+    $eE = NextId; $pEid = NextId; $pEcl = NextId; $pEst = NextId; $pEps = NextId; $pEpr = NextId
+    $ejE = EtJson $eE "Encounter" $pEid $pEid ((PropJson $pEid "encounterId"),(PropJson $pEcl "encounterClass"),(PropJson $pEst "encounterStatus"),(PropJson $pEps "periodStart"),(PropJson $pEpr "patientRef") -join ',')
+    $dbE = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pEid+'"},{"sourceColumnName":"class_string","targetPropertyId":"'+$pEcl+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pEst+'"},{"sourceColumnName":"period_start","targetPropertyId":"'+$pEps+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pEpr+'"}') "Encounter"
+    $ets += @{id=$eE;j=$ejE;b=$dbE}
+
+    # Condition
+    $eC = NextId; $pCid = NextId; $pCdn = NextId; $pCcs = NextId; $pCpr = NextId
+    $ejC = EtJson $eC "Condition" $pCid $pCdn ((PropJson $pCid "conditionId"),(PropJson $pCdn "conditionName"),(PropJson $pCcs "clinicalStatus"),(PropJson $pCpr "patientRef") -join ',')
+    $dbC = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pCid+'"},{"sourceColumnName":"code_string","targetPropertyId":"'+$pCdn+'"},{"sourceColumnName":"clinicalStatus_string","targetPropertyId":"'+$pCcs+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pCpr+'"}') "Condition"
+    $ets += @{id=$eC;j=$ejC;b=$dbC}
+
+    # MedicationRequest
+    $eM = NextId; $pMid = NextId; $pMmd = NextId; $pMst = NextId; $pMau = NextId; $pMpr = NextId
+    $ejM = EtJson $eM "MedRequest" $pMid $pMmd ((PropJson $pMid "medicationRequestId"),(PropJson $pMmd "medication"),(PropJson $pMst "medStatus"),(PropJson $pMau "authoredOn"),(PropJson $pMpr "patientRef") -join ',')
+    $dbM = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pMid+'"},{"sourceColumnName":"medicationCodeableConcept_string","targetPropertyId":"'+$pMmd+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pMst+'"},{"sourceColumnName":"authoredOn","targetPropertyId":"'+$pMau+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pMpr+'"}') "MedicationRequest"
+    $ets += @{id=$eM;j=$ejM;b=$dbM}
+
+    # Observation
+    $eO = NextId; $pOid = NextId; $pOco = NextId; $pOvl = NextId; $pOun = NextId; $pOef = NextId; $pOpr = NextId
+    $ejO = EtJson $eO "Observation" $pOid $pOco ((PropJson $pOid "observationId"),(PropJson $pOco "observationCode"),(PropJson $pOvl "observationValue"),(PropJson $pOun "observationUnit"),(PropJson $pOef "effectiveDateTime"),(PropJson $pOpr "patientRef") -join ',')
+    $dbO = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pOid+'"},{"sourceColumnName":"code_string","targetPropertyId":"'+$pOco+'"},{"sourceColumnName":"valueQuantity_value","targetPropertyId":"'+$pOvl+'"},{"sourceColumnName":"valueQuantity_unit","targetPropertyId":"'+$pOun+'"},{"sourceColumnName":"effectiveDateTime","targetPropertyId":"'+$pOef+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pOpr+'"}') "Observation"
+    $ets += @{id=$eO;j=$ejO;b=$dbO}
+
+    # Relationships
+    $rels += @(
+        @{id=(NextId);n="hasEncounter";s=$eP;t=$eE;ctx=(LhCtx "Encounter" "subject_string" $pPid "idOrig" $pEid)},
+        @{id=(NextId);n="hasCondition";s=$eP;t=$eC;ctx=(LhCtx "Condition" "subject_string" $pPid "idOrig" $pCid)},
+        @{id=(NextId);n="hasObservation";s=$eP;t=$eO;ctx=(LhCtx "Observation" "subject_string" $pPid "idOrig" $pOid)},
+        @{id=(NextId);n="hasMedication";s=$eP;t=$eM;ctx=(LhCtx "MedicationRequest" "subject_string" $pPid "idOrig" $pMid)}
+    )
 }
 
+# 3. Medical Imaging Ingestion Entities (DICOM)
+if ($IncludeDicom) {
+    # ImagingStudy
+    $eI = NextId; $pIid = NextId; $pIdesc = NextId; $pIpr = NextId; $pInos = NextId; $pInoi = NextId
+    $ejI = EtJson $eI "ImagingStudy" $pIid $pIdesc ((PropJson $pIid "studyId"),(PropJson $pIdesc "description"),(PropJson $pIpr "patientRef"),(PropJson $pInos "numberOfSeries" "BigInt"),(PropJson $pInoi "numberOfInstances" "BigInt") -join ',')
+    $dbI = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pIid+'"},{"sourceColumnName":"description","targetPropertyId":"'+$pIdesc+'"},{"sourceColumnName":"subject_string","targetPropertyId":"'+$pIpr+'"},{"sourceColumnName":"numberOfSeries","targetPropertyId":"'+$pInos+'"},{"sourceColumnName":"numberOfInstances","targetPropertyId":"'+$pInoi+'"}') "ImagingStudy"
+    $ets += @{id=$eI;j=$ejI;b=$dbI}
+
+    # Relationship
+    if ($IncludeFhir -or $IncludeDicom) {
+        $rels += @(
+            @{id=(NextId);n="hasImagingStudy";s=$eP;t=$eI;ctx=(LhCtx "ImagingStudy" "subject_string" $pPid "idOrig" $pIid)}
+        )
+    }
+}
+
+# 4. Telemetry Entities (Eventhouse)
+if ($IncludeTelemetry) {
+    # Device
+    $eD = NextId; $pDid = NextId; $pDty = NextId; $pDst = NextId
+    $ejD = EtJson $eD "Device" $pDid $pDid ((PropJson $pDid "deviceId"),(PropJson $pDty "deviceType"),(PropJson $pDst "deviceStatus") -join ',')
+    $dbD = LhBind ('{"sourceColumnName":"idOrig","targetPropertyId":"'+$pDid+'"},{"sourceColumnName":"type_string","targetPropertyId":"'+$pDty+'"},{"sourceColumnName":"status","targetPropertyId":"'+$pDst+'"}') "Device"
+    $ets += @{id=$eD;j=$ejD;b=$dbD}
+
+    # DeviceAssociation
+    $eA = NextId; $pAid = NextId; $pAdr = NextId; $pApn = NextId; $pApi = NextId
+    $ejA = EtJson $eA "DeviceAssoc" $pAid $pApn ((PropJson $pAid "associationId"),(PropJson $pAdr "deviceRef"),(PropJson $pApn "assocPatientName"),(PropJson $pApi "assocPatientId") -join ',')
+    $dbA = LhBind ('{"sourceColumnName":"id","targetPropertyId":"'+$pAid+'"},{"sourceColumnName":"device_ref","targetPropertyId":"'+$pAdr+'"},{"sourceColumnName":"patient_name","targetPropertyId":"'+$pApn+'"},{"sourceColumnName":"patient_id","targetPropertyId":"'+$pApi+'"}') "DeviceAssociation"
+    $ets += @{id=$eA;j=$ejA;b=$dbA}
+
+    # ClinicalAlert (Eventhouse TimeSeries binding)
+    $eAl = NextId; $pAlid = NextId; $pAltm = NextId; $pAldi = NextId; $pAlpi = NextId
+    $pAlpn = NextId; $pAltr = NextId; $pAlty = NextId; $pAlmg = NextId
+    $ejAl = EtJson $eAl "ClinicalAlert" $pAlid $pAlmg `
+        ((PropJson $pAlid "alertId"),(PropJson $pAldi "alertDeviceId"),(PropJson $pAlpi "alertPatientId"),(PropJson $pAlpn "alertPatientName"),(PropJson $pAltr "alertTier"),(PropJson $pAlty "alertType"),(PropJson $pAlmg "alertMessage") -join ',') `
+        ((PropJson $pAltm "alertTime" "DateTime") -join ',')
+    $dbAl = EhBind "alert_time" ('{"sourceColumnName":"alert_id","targetPropertyId":"'+$pAlid+'"},{"sourceColumnName":"alert_time","targetPropertyId":"'+$pAltm+'"},{"sourceColumnName":"device_id","targetPropertyId":"'+$pAldi+'"},{"sourceColumnName":"patient_id","targetPropertyId":"'+$pAlpi+'"},{"sourceColumnName":"patient_name","targetPropertyId":"'+$pAlpn+'"},{"sourceColumnName":"alert_tier","targetPropertyId":"'+$pAltr+'"},{"sourceColumnName":"alert_type","targetPropertyId":"'+$pAlty+'"},{"sourceColumnName":"message","targetPropertyId":"'+$pAlmg+'"}') "AlertHistory"
+    $ets += @{id=$eAl;j=$ejAl;b=$dbAl}
+
+    # DeviceTelemetry (Eventhouse TimeSeries binding)
+    $eT = NextId; $pTdi = NextId; $pTts = NextId; $pTspo2 = NextId; $pTpr = NextId; $pTpi = NextId; $pTpvi = NextId
+    $ejT = EtJson $eT "DeviceTelemetry" $pTdi $pTdi `
+        (PropJson $pTdi "telemetryDeviceId") `
+        ((PropJson $pTts "telemetryTimestamp" "DateTime"),(PropJson $pTspo2 "spo2" "Double"),(PropJson $pTpr "pulseRate" "Double"),(PropJson $pTpi "perfusionIndex" "Double"),(PropJson $pTpvi "plethVariability" "Double") -join ',')
+    $dbT = EhBind "timestamp" ('{"sourceColumnName":"device_id","targetPropertyId":"'+$pTdi+'"},{"sourceColumnName":"timestamp","targetPropertyId":"'+$pTts+'"},{"sourceColumnName":"telemetry.spo2","targetPropertyId":"'+$pTspo2+'"},{"sourceColumnName":"telemetry.pr","targetPropertyId":"'+$pTpr+'"},{"sourceColumnName":"telemetry.pi","targetPropertyId":"'+$pTpi+'"},{"sourceColumnName":"telemetry.pvi","targetPropertyId":"'+$pTpvi+'"}') "TelemetryRaw"
+    $ets += @{id=$eT;j=$ejT;b=$dbT}
+
+    if ($IncludeFhir -or $IncludeDicom) {
+        $rels += @(
+            @{id=(NextId);n="linkedToDevice";s=$eP;t=$eD;ctx=(LhCtx "DeviceAssociation" "patient_id" $pPid "device_ref" $pDid)}
+        )
+    }
+}
+
+# 5. Claims & Quality Entities (Gold Lakehouse — only if Gold LH exists)
 $claimEntities = @()
 $claimRels = @()
 
-if ($goldLhId) {
+if ($IncludeGold -and $goldLhId) {
     Write-Host "  Building claims & quality entities (Gold Lakehouse)..." -ForegroundColor White
+
+    # Helper: Gold Lakehouse data binding
+    function GoldLhBind([string]$bindings, [string]$tbl) {
+        $bid = [guid]::NewGuid().ToString()
+        return @{ id = $bid; json = '{"id":"'+$bid+'","dataBindingConfiguration":{"dataBindingType":"NonTimeSeries","propertyBindings":['+$bindings+'],"sourceTableProperties":{"sourceType":"LakehouseTable","workspaceId":"'+$workspaceId+'","itemId":"'+$goldLhId+'","sourceTableName":"'+$tbl+'","sourceSchema":"dbo"}}}' }
+    }
+
+    # Helper: Gold Lakehouse contextualization
+    function GoldLhCtx([string]$tbl, [string]$sc, [string]$sp, [string]$tc, [string]$tp) {
+        $cid = [guid]::NewGuid().ToString()
+        return @{ id = $cid; json = '{"id":"'+$cid+'","dataBindingTable":{"sourceType":"LakehouseTable","workspaceId":"'+$workspaceId+'","itemId":"'+$goldLhId+'","sourceTableName":"'+$tbl+'","sourceSchema":"dbo"},"sourceKeyRefBindings":[{"sourceColumnName":"'+$sc+'","targetPropertyId":"'+$sp+'"}],"targetKeyRefBindings":[{"sourceColumnName":"'+$tc+'","targetPropertyId":"'+$tp+'"}]}' }
+    }
 
     # Claim entity (from fact_claim)
     $eCl = NextId; $pClid = NextId; $pClcid = NextId; $pClty = NextId; $pClst = NextId
@@ -410,19 +484,20 @@ if ($goldLhId) {
     $dbMA = GoldLhBind ('{"sourceColumnName":"patient_id","targetPropertyId":"'+$pMApi+'"},{"sourceColumnName":"medication_class","targetPropertyId":"'+$pMAmc+'"},{"sourceColumnName":"pdc_score","targetPropertyId":"'+$pMApd+'"},{"sourceColumnName":"adherence_category","targetPropertyId":"'+$pMAac+'"},{"sourceColumnName":"gap_days","targetPropertyId":"'+$pMAgd+'"},{"sourceColumnName":"total_fills","targetPropertyId":"'+$pMAtf+'"}') "agg_medication_adherence"
     $claimEntities += @{id=$eMA;j=$ejMA;b=$dbMA}
 
+    $ets += $claimEntities
     Write-Host "  ✓ 5 claims/quality entities built" -ForegroundColor Green
 
     # Relationships for claims entities
-    $claimRels = @(
-        @{id=(NextId);n="hasClaim";s=$eP;t=$eCl;ctx=(GoldLhCtx "fact_claim" "patient_ref" $pPid "claim_key" $pClid)},
-        @{id=(NextId);n="paidBy";s=$eCl;t=$ePy;ctx=(GoldLhCtx "fact_claim" "coverage_ref" $pClid "payer_key" $pPyid)},
-        @{id=(NextId);n="hasDiagnosis";s=$eP;t=$ePD;ctx=(GoldLhCtx "fact_diagnosis" "patient_ref" $pPid "fact_diagnosis_key" $pPDid)},
-        @{id=(NextId);n="hasAdherence";s=$eP;t=$eMA;ctx=(GoldLhCtx "agg_medication_adherence" "patient_id" $pPid "patient_id" $pMApi)}
-    )
-
-    Write-Host "  ✓ 4 claims/quality relationships built" -ForegroundColor Green
-} else {
-    Write-Host "  ⚠ Skipping claims/quality entities — Gold Lakehouse not found" -ForegroundColor Yellow
+    if ($IncludeFhir -or $IncludeDicom) {
+        $claimRels = @(
+            @{id=(NextId);n="hasClaim";s=$eP;t=$eCl;ctx=(GoldLhCtx "fact_claim" "patient_ref" $pPid "claim_key" $pClid)},
+            @{id=(NextId);n="paidBy";s=$eCl;t=$ePy;ctx=(GoldLhCtx "fact_claim" "coverage_ref" $pClid "payer_key" $pPyid)},
+            @{id=(NextId);n="hasDiagnosis";s=$eP;t=$ePD;ctx=(GoldLhCtx "fact_diagnosis" "patient_ref" $pPid "fact_diagnosis_key" $pPDid)},
+            @{id=(NextId);n="hasAdherence";s=$eP;t=$eMA;ctx=(GoldLhCtx "agg_medication_adherence" "patient_id" $pPid "patient_id" $pMApi)}
+        )
+        $rels += $claimRels
+        Write-Host "  ✓ 4 claims/quality relationships built" -ForegroundColor Green
+    }
 }
 
 # --- Assemble parts ---
@@ -435,25 +510,12 @@ $parts += '{"path":".platform","payload":"'+(ConvertTo-Base64 $pl)+'","payloadTy
 $parts += '{"path":"definition.json","payload":"'+(ConvertTo-Base64 '{}')+'","payloadType":"InlineBase64"}'
 
 # Entity types with bindings
-$ets = @(
-    @{id=$eP;j=$ejP;b=$dbP},@{id=$eD;j=$ejD;b=$dbD},@{id=$eE;j=$ejE;b=$dbE},
-    @{id=$eC;j=$ejC;b=$dbC},@{id=$eM;j=$ejM;b=$dbM},@{id=$eO;j=$ejO;b=$dbO},
-    @{id=$eA;j=$ejA;b=$dbA},
-    @{id=$eAl;j=$ejAl;b=$dbAl},@{id=$eT;j=$ejT;b=$dbT}
-) + $claimEntities
 foreach ($e in $ets) {
     $parts += '{"path":"EntityTypes/'+$e.id+'/definition.json","payload":"'+(ConvertTo-Base64 $e.j)+'","payloadType":"InlineBase64"}'
     if ($e.b) { $parts += '{"path":"EntityTypes/'+$e.id+'/DataBindings/'+$e.b.id+'.json","payload":"'+(ConvertTo-Base64 $e.b.json)+'","payloadType":"InlineBase64"}' }
 }
 
 # Relationship types with contextualizations
-$rels = @(
-    @{id=(NextId);n="hasEncounter";s=$eP;t=$eE;ctx=(LhCtx "Encounter" "subject_string" $pPid "idOrig" $pEid)},
-    @{id=(NextId);n="hasCondition";s=$eP;t=$eC;ctx=(LhCtx "Condition" "subject_string" $pPid "idOrig" $pCid)},
-    @{id=(NextId);n="hasObservation";s=$eP;t=$eO;ctx=(LhCtx "Observation" "subject_string" $pPid "idOrig" $pOid)},
-    @{id=(NextId);n="hasMedication";s=$eP;t=$eM;ctx=(LhCtx "MedicationRequest" "subject_string" $pPid "idOrig" $pMid)},
-    @{id=(NextId);n="linkedToDevice";s=$eP;t=$eD;ctx=(LhCtx "DeviceAssociation" "patient_id" $pPid "device_ref" $pDid)}
-) + $claimRels
 foreach ($r in $rels) {
     if (-not $r.ctx) { continue }
     $rj = RtJson $r.id $r.n $r.s $r.t
@@ -464,7 +526,7 @@ foreach ($r in $rels) {
 $totalEntities = $ets.Count
 $totalRels = ($rels | Where-Object { $_.ctx }).Count
 Write-Host "  ✓ Definition assembled: $($parts.Count) parts" -ForegroundColor Green
-Write-Host ("    Entity types: {0} -- 7 Silver LH + 2 Eventhouse + {1} Gold LH" -f $totalEntities, $claimEntities.Count) -ForegroundColor DarkGray
+Write-Host "    Entity types: $totalEntities active across components" -ForegroundColor DarkGray
 Write-Host "    Relationships: $totalRels with contextualizations" -ForegroundColor DarkGray
 
 # ============================================================================
@@ -474,7 +536,7 @@ Write-Host "    Relationships: $totalRels with contextualizations" -ForegroundCo
 Write-Host ""
 Write-Host "  Deploying ontology '$OntologyName'..." -ForegroundColor White
 
-$bodyJson = '{"displayName":"'+$OntologyName+'","description":"Clinical semantic layer: '+$totalEntities+' entity types, '+$totalRels+' relationships across Silver Lakehouse, Gold Lakehouse, and Eventhouse. Includes claims, quality measures, and medication adherence.","definition":{"parts":['+($parts -join ',')+']}}' 
+$bodyJson = '{"displayName":"'+$OntologyName+'","description":"Clinical semantic layer: '+$totalEntities+' entity types, '+$totalRels+' relationships dynamically configured across active workspace components.","definition":{"parts":['+($parts -join ',')+']}}' 
 
 $cToken = Get-FabricAccessToken
 $cHeaders = @{ "Authorization" = "Bearer $cToken"; "Content-Type" = "application/json" }

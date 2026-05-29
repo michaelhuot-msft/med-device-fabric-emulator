@@ -1050,6 +1050,17 @@ if (-not $Phase3 -and -not $Phase4 -and -not $SkipFabric) {
 # ============================================================================
 
 if (-not $Phase3 -and -not $Phase4 -and -not $SkipBaseInfra) {
+    $deployArgs = @{
+        ResourceGroupName  = $ResourceGroupName
+        Location           = $Location
+        AdminSecurityGroup = $AdminSecurityGroup
+        Tags               = $Tags
+        SpnClientId        = $SpnClientId
+        SpnClientSecret    = $SpnClientSecret
+        SpnTenantId        = $SpnTenantId
+    }
+    if ($SkipFabric) { $deployArgs['SkipTelemetry'] = $true }
+
     Write-Host "  Checking for existing base infrastructure..." -ForegroundColor DarkGray
     $baseInfraExists = $false
     $baseDeployment = az deployment group show `
@@ -1112,14 +1123,7 @@ if (-not $Phase3 -and -not $Phase4 -and -not $SkipBaseInfra) {
             }
         } else {
             Write-Host "    ⚠ Emulator ACI not found — running deploy.ps1 to create it..." -ForegroundColor Yellow
-            & "$ScriptDir\phase-1\deploy.ps1" `
-                -ResourceGroupName $ResourceGroupName `
-                -Location $Location `
-                -AdminSecurityGroup $AdminSecurityGroup `
-                -Tags $Tags `
-                -SpnClientId $SpnClientId `
-                -SpnClientSecret $SpnClientSecret `
-                -SpnTenantId $SpnTenantId
+            & "$ScriptDir\phase-1\deploy.ps1" @deployArgs
         }
 
         Write-Host ""
@@ -1137,14 +1141,7 @@ if (-not $Phase3 -and -not $Phase4 -and -not $SkipBaseInfra) {
             Write-Host "  [3/4] Building emulator container image in ACR..." -ForegroundColor White
             Write-Host "  [4/4] Deploying emulator ACI container (bicep/emulator.bicep)..." -ForegroundColor White
             Write-Host ""
-            & "$ScriptDir\phase-1\deploy.ps1" `
-                -ResourceGroupName $ResourceGroupName `
-                -Location $Location `
-                -AdminSecurityGroup $AdminSecurityGroup `
-                -Tags $Tags `
-                -SpnClientId $SpnClientId `
-                -SpnClientSecret $SpnClientSecret `
-                -SpnTenantId $SpnTenantId
+            & "$ScriptDir\phase-1\deploy.ps1" @deployArgs
         }
     }
 } else {
@@ -1152,78 +1149,86 @@ if (-not $Phase3 -and -not $Phase4 -and -not $SkipBaseInfra) {
 }
 
 # ============================================================================
-# STEP 2 — FHIR SERVICE + SYNTHEA + LOADER
+# STEP 2 — FHIR SERVICE + SYNTHEA + LOADER (MODULAR)
 # ============================================================================
 
-if (-not $Phase3 -and -not $Phase4 -and -not $SkipFhir) {
-    if ($ReusePatients) {
+if (-not $Phase3 -and -not $Phase4 -and (-not $SkipFhir -or -not $SkipDicom)) {
+    if ($ReusePatients -and -not $SkipFhir) {
         Write-Host "  >>  Reusing existing patients — skipping Synthea + FHIR Loader" -ForegroundColor Yellow
         Write-Host "      Existing patient/device data in FHIR will be preserved." -ForegroundColor DarkGray
     } else {
-    Invoke-Step -StepName "Phase 1: FHIR Service + Synthea + Loader" `
-        -Description "$PatientCount patients -> FHIR (deploy-fhir.ps1)" -Action {
-        Write-Host "  This step will:" -ForegroundColor White
-        Write-Host "    [1/5] Deploy FHIR infrastructure (HDS workspace, FHIR R4, storage, UAMI)" -ForegroundColor DarkGray
-        Write-Host "    [2/5] Build Synthea + Loader container images in ACR" -ForegroundColor DarkGray
-        Write-Host "    [3/5] Run Synthea to generate $PatientCount synthetic patients" -ForegroundColor DarkGray
-        Write-Host "    [4/5] Upload FHIR bundles, providers, and devices" -ForegroundColor DarkGray
-        Write-Host "    [5/5] Create device associations for qualifying patients" -ForegroundColor DarkGray
-        if ($RebuildContainers) {
-            Write-Host "    (Container images will be force-rebuilt)" -ForegroundColor Yellow
-        }
-        Write-Host ""
+        $stepName = if ($SkipFhir) { "Phase 1: Shared HDS Infrastructure" } else { "Phase 1: FHIR Service + Synthea + Loader" }
+        $stepDesc = if ($SkipFhir) { "Deploy shared HDS workspace and storage" } else { "$PatientCount patients -> FHIR (deploy-fhir.ps1)" }
 
-        $fhirArgs = @{
-            ResourceGroupName  = $ResourceGroupName
-            Location           = $Location
-            AdminSecurityGroup = $AdminSecurityGroup
-            PatientCount       = $PatientCount
-            SkipDicom          = $true
-        }
-        if ($RebuildContainers) { $fhirArgs['RebuildContainers'] = $true }
-        if ($UseCachedSynthea) { $fhirArgs['UseCachedSynthea'] = $true }
-        if ($Tags.Count -gt 0) { $fhirArgs['Tags'] = $Tags }
+        Invoke-Step -StepName $stepName `
+            -Description $stepDesc -Action {
+            Write-Host "  This step will:" -ForegroundColor White
+            if ($SkipFhir) {
+                Write-Host "    [1/2] Deploy shared HDS workspace and ADLS storage account (FHIR Service bypassed)" -ForegroundColor DarkGray
+                Write-Host "    [2/2] Skip Synthea & FHIR Loader (FHIR is unselected)" -ForegroundColor DarkGray
+            } else {
+                Write-Host "    [1/5] Deploy FHIR infrastructure (HDS workspace, FHIR R4, storage, UAMI)" -ForegroundColor DarkGray
+                Write-Host "    [2/5] Build Synthea + Loader container images in ACR" -ForegroundColor DarkGray
+                Write-Host "    [3/5] Run Synthea to generate $PatientCount synthetic patients" -ForegroundColor DarkGray
+                Write-Host "    [4/5] Upload FHIR bundles, providers, and devices" -ForegroundColor DarkGray
+                Write-Host "    [5/5] Create device associations for qualifying patients" -ForegroundColor DarkGray
+            }
+            if ($RebuildContainers) {
+                Write-Host "    (Container images will be force-rebuilt)" -ForegroundColor Yellow
+            }
+            Write-Host ""
 
-        & "$ScriptDir\phase-1\deploy-fhir.ps1" @fhirArgs
-    }
+            $fhirArgs = @{
+                ResourceGroupName  = $ResourceGroupName
+                Location           = $Location
+                AdminSecurityGroup = $AdminSecurityGroup
+                PatientCount       = $PatientCount
+                SkipDicom          = $true
+            }
+            if ($SkipFhir) { $fhirArgs['SkipFhir'] = $true }
+            if ($RebuildContainers) { $fhirArgs['RebuildContainers'] = $true }
+            if ($UseCachedSynthea) { $fhirArgs['UseCachedSynthea'] = $true }
+            if ($Tags.Count -gt 0) { $fhirArgs['Tags'] = $Tags }
+
+            & "$ScriptDir\phase-1\deploy-fhir.ps1" @fhirArgs
+        }
     }
 } else {
-    Write-Host "  >>  Skipping FHIR / Synthea (--SkipFhir)" -ForegroundColor DarkGray
+    Write-Host "  >>  Skipping FHIR / Synthea (--SkipFhir and DICOM also skipped)" -ForegroundColor DarkGray
 }
 
 # ============================================================================
 # STEP 2b — DICOM SERVICE + TCIA LOADER
 # ============================================================================
 
-if (-not $Phase3 -and -not $Phase4 -and -not $SkipDicom -and -not $SkipFhir) {
+if (-not $Phase3 -and -not $Phase4 -and -not $SkipDicom) {
     if ($ReusePatients) {
         Write-Host "  >>  Reusing existing patients — skipping DICOM Loader" -ForegroundColor Yellow
         Write-Host "      Existing DICOM/ImagingStudy data will be preserved." -ForegroundColor DarkGray
     } else {
-    Invoke-Step -StepName "Phase 1: DICOM Service + Loader" `
-        -Description "DICOM infra, TCIA download, re-tag, upload (deploy-fhir.ps1 -RunDicom)" -Action {
-        Write-Host "  This step will:" -ForegroundColor White
-        Write-Host "    [1/3] Build DICOM Loader container image in ACR" -ForegroundColor DarkGray
-        Write-Host "    [2/3] Deploy DICOM service into HDS workspace" -ForegroundColor DarkGray
-        Write-Host "    [3/3] Run DICOM Loader (TCIA download, re-tag, STOW-RS upload)" -ForegroundColor DarkGray
-        Write-Host ""
+        Invoke-Step -StepName "Phase 1: DICOM Service + Loader" `
+            -Description "DICOM infra, TCIA download, re-tag, upload (deploy-fhir.ps1 -RunDicom)" -Action {
+            Write-Host "  This step will:" -ForegroundColor White
+            Write-Host "    [1/3] Build DICOM Loader container image in ACR" -ForegroundColor DarkGray
+            Write-Host "    [2/3] Deploy DICOM service into HDS workspace" -ForegroundColor DarkGray
+            Write-Host "    [3/3] Run DICOM Loader (TCIA download, re-tag, STOW-RS upload)" -ForegroundColor DarkGray
+            Write-Host ""
 
-        $dicomArgs = @{
-            ResourceGroupName  = $ResourceGroupName
-            Location           = $Location
-            AdminSecurityGroup = $AdminSecurityGroup
-            RunDicom           = $true
+            $dicomArgs = @{
+                ResourceGroupName  = $ResourceGroupName
+                Location           = $Location
+                AdminSecurityGroup = $AdminSecurityGroup
+                RunDicom           = $true
+            }
+            if ($SkipFhir) { $dicomArgs['SkipFhir'] = $true }
+            if ($RebuildContainers) { $dicomArgs['RebuildContainers'] = $true }
+            if ($Tags.Count -gt 0) { $dicomArgs['Tags'] = $Tags }
+
+            & "$ScriptDir\phase-1\deploy-fhir.ps1" @dicomArgs
         }
-        if ($RebuildContainers) { $dicomArgs['RebuildContainers'] = $true }
-        if ($Tags.Count -gt 0) { $dicomArgs['Tags'] = $Tags }
-
-        & "$ScriptDir\phase-1\deploy-fhir.ps1" @dicomArgs
     }
-    }
-} elseif ($SkipDicom) {
-    Write-Host "  >>  Skipping DICOM (--SkipDicom)" -ForegroundColor DarkGray
 } else {
-    Write-Host "  >>  Skipping DICOM (FHIR was skipped)" -ForegroundColor DarkGray
+    Write-Host "  >>  Skipping DICOM (--SkipDicom)" -ForegroundColor DarkGray
 }
 
 # ============================================================================
@@ -1849,15 +1854,19 @@ if (($Phase4 -or ($Phase2 -and -not $Phase3)) -and -not $SkipOntology) {
         # ── Step 8b: Materialize DeviceAssociation table ──
         Write-Host ""
         Write-Host "  --- Step 8b: DeviceAssociation Table ---" -ForegroundColor Cyan
-        Write-Host "  Materializing DeviceAssociation from Basic table (Silver Lakehouse)..." -ForegroundColor White
 
-        # Find Silver Lakehouse
-        $p4Token = Get-FabricTokenLocal
-        $p4Headers = @{ Authorization = "Bearer $p4Token"; "Content-Type" = "application/json" }
-        $p4Lakehouses = (Invoke-RestMethod -Uri "$p4Base/workspaces/$p4WsId/lakehouses" -Headers $p4Headers).value
-        $p4SilverLh = $p4Lakehouses | Where-Object { $_.displayName -match '[Ss]ilver' } | Select-Object -First 1
+        if ($SkipFabric) {
+            Write-Host "  Bypassing DeviceAssociation table materialization (--SkipFabric active)" -ForegroundColor Yellow
+        } else {
+            Write-Host "  Materializing DeviceAssociation from Basic table (Silver Lakehouse)..." -ForegroundColor White
 
-        if ($p4SilverLh) {
+            # Find Silver Lakehouse
+            $p4Token = Get-FabricTokenLocal
+            $p4Headers = @{ Authorization = "Bearer $p4Token"; "Content-Type" = "application/json" }
+            $p4Lakehouses = (Invoke-RestMethod -Uri "$p4Base/workspaces/$p4WsId/lakehouses" -Headers $p4Headers).value
+            $p4SilverLh = $p4Lakehouses | Where-Object { $_.displayName -match '[Ss]ilver' } | Select-Object -First 1
+
+            if ($p4SilverLh) {
             $p4SilverLhId = $p4SilverLh.id
             Write-Host "  ✓ Silver Lakehouse: $($p4SilverLh.displayName) ($p4SilverLhId)" -ForegroundColor Green
 
@@ -2035,14 +2044,21 @@ except Exception as e:
         } else {
             Write-Host "  ⚠ Silver Lakehouse not found — skipping DeviceAssociation" -ForegroundColor Yellow
         }
+    }
 
         # ── Step 8c: Deploy Ontology ──
         Write-Host ""
         Write-Host "  --- Step 8c: Ontology Deployment ---" -ForegroundColor Cyan
         Write-Host "  Deploying ClinicalDeviceOntology..." -ForegroundColor White
 
-        & "$ScriptDir\phase-4\deploy-ontology.ps1" `
-            -FabricWorkspaceName $FabricWorkspaceName
+        $ontologyArgs = @{
+            FabricWorkspaceName = $FabricWorkspaceName
+            IncludeFhir         = [bool](-not $SkipFhir)
+            IncludeDicom        = [bool](-not $SkipDicom)
+            IncludeTelemetry    = [bool](-not $SkipFabric)
+            IncludeGold         = [bool](-not $SkipQualityMeasures)
+        }
+        & "$ScriptDir\phase-4\deploy-ontology.ps1" @ontologyArgs
 
         Write-Host ""
 

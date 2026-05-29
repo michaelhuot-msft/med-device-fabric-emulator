@@ -419,7 +419,8 @@ def process_single_patient_worker(
     default_studies: list[dict],
     collection: str,
     stats: dict,
-    tmp_base: str
+    tmp_base: str,
+    no_fhir_mode: bool = False
 ):
     patient_id = assoc["patientId"]
     device_id = assoc["deviceId"]
@@ -431,12 +432,29 @@ def process_single_patient_worker(
         # Create dedicated TCIAClient per thread
         tcia = TCIAClient()
 
-        # Get patient info and conditions
-        fhir_token = azure.fhir_token
-        patient_info = get_patient_info(fhir_url, fhir_token, patient_id)
-        condition_codings = get_patient_conditions(fhir_url, fhir_token, patient_id)
-        target_collection, modality = determine_collection(condition_codings, modality_map)
-        body_site = infer_body_site(condition_codings)
+        if no_fhir_mode:
+            patient_info = {
+                "idOrig": patient_id,
+                "family": f"MockFamily{idx+1}",
+                "given": f"MockGiven{idx+1}",
+                "birthDate": "1980-01-01",
+                "gender": "female" if idx % 2 == 0 else "male",
+            }
+            condition_codings = []
+            target_collection, modality = collection, "CT" # default values
+            body_site = {
+                "code": "39607008",
+                "display": "Chest",
+                "text": "Chest",
+                "dicom_body_part": "CHEST",
+            }
+        else:
+            # Get patient info and conditions
+            fhir_token = azure.fhir_token
+            patient_info = get_patient_info(fhir_url, fhir_token, patient_id)
+            condition_codings = get_patient_conditions(fhir_url, fhir_token, patient_id)
+            target_collection, modality = determine_collection(condition_codings, modality_map)
+            body_site = infer_body_site(condition_codings)
 
         if patient_id in forced_chest_patient_ids:
             target_collection = "RSNA Pneumonia"
@@ -505,16 +523,19 @@ def process_single_patient_worker(
         logger.info("  [%d] Uploaded study %s (%d files)", idx + 1, study_uid, len(retagged_files))
 
         # Create FHIR ImagingStudy resource
-        fhir_token = azure.fhir_token
-        img_study_id = create_imaging_study(
-            fhir_url, fhir_token, patient_id,
-            study_uid, series_uid, modality,
-            body_site,
-            len(retagged_files), blob_base,
-        )
-        with stats_lock:
-            stats["imaging_studies_created"] += 1
-        logger.info("  [%d] Created ImagingStudy/%s", idx + 1, img_study_id)
+        if not no_fhir_mode:
+            fhir_token = azure.fhir_token
+            img_study_id = create_imaging_study(
+                fhir_url, fhir_token, patient_id,
+                study_uid, series_uid, modality,
+                body_site,
+                len(retagged_files), blob_base,
+            )
+            with stats_lock:
+                stats["imaging_studies_created"] += 1
+            logger.info("  [%d] Created ImagingStudy/%s", idx + 1, img_study_id)
+        else:
+            logger.info("  [%d] Skipped creating FHIR ImagingStudy resource (No-FHIR mode active)", idx + 1)
 
         # Clean up temp files for this patient
         shutil.rmtree(download_dir, ignore_errors=True)
@@ -536,12 +557,17 @@ def main():
     collection = os.environ.get("TCIA_COLLECTION", "LIDC-IDRI")
     study_count = int(os.environ.get("STUDY_COUNT", "100"))
 
-    if not fhir_url or not storage_account:
-        logger.error("FHIR_SERVICE_URL and STORAGE_ACCOUNT must be set")
+    if not storage_account:
+        logger.error("STORAGE_ACCOUNT must be set")
         sys.exit(1)
 
+    no_fhir_mode = False
+    if not fhir_url:
+        logger.info("FHIR_SERVICE_URL not set. Running in No-FHIR mode.")
+        no_fhir_mode = True
+
     logger.info("DICOM Loader starting")
-    logger.info("  FHIR URL:        %s", fhir_url)
+    logger.info("  FHIR URL:        %s", fhir_url if fhir_url else "<None>")
     logger.info("  Storage Account: %s", storage_account)
     logger.info("  DICOM Container: %s", dicom_container)
     logger.info("  Collection:      %s", collection)
@@ -574,26 +600,35 @@ def main():
         azure.blob_service.create_container(dicom_container)
 
     # Step 1: Get device-associated patients (blob first, FHIR search fallback)
-    # Blob is strongly consistent — no search indexing delay
-    associations = get_device_associations_from_blob(storage_account, azure.credential)
-    
-    if not associations:
-        # Fallback: query FHIR directly (may hit search indexing delays)
-        logger.info("Falling back to FHIR search for device associations...")
-        fhir_token = azure.fhir_token
-        for attempt in range(30):  # Retry up to 5 minutes
-            associations = get_device_associated_patients(fhir_url, fhir_token)
-            if associations:
-                break
-            if attempt < 29:
-                logger.info("Waiting for FHIR search index to be consistent... (%ds)", (attempt + 1) * 10)
-                import time
-                time.sleep(10)
-                fhir_token = azure.fhir_token
+    associations = []
+    if not no_fhir_mode:
+        associations = get_device_associations_from_blob(storage_account, azure.credential)
+        
+        if not associations:
+            logger.info("Falling back to FHIR search for device associations...")
+            fhir_token = azure.fhir_token
+            for attempt in range(30):  # Retry up to 5 minutes
+                associations = get_device_associated_patients(fhir_url, fhir_token)
+                if associations:
+                    break
+                if attempt < 29:
+                    logger.info("Waiting for FHIR search index to be consistent... (%ds)", (attempt + 1) * 10)
+                    import time
+                    time.sleep(10)
+                    fhir_token = azure.fhir_token
 
     if not associations:
-        logger.error("No device-associated patients found. Run the FHIR loader first.")
-        sys.exit(1)
+        logger.info("No associations found. Using mock patients (No-FHIR fallback active).")
+        no_fhir_mode = True
+        associations = []
+        for i in range(1, 6):
+            patient_id = f"PT-MOCK-{i:04d}"
+            device_id = f"MASIMO-RADIUS7-{i:04d}"
+            associations.append({
+                "patientId": patient_id,
+                "deviceId": device_id,
+                "patientName": f"Jane Doe Mock {i}"
+            })
 
     associations = associations[:study_count]
     logger.info("Processing %d patients", len(associations))
@@ -636,7 +671,8 @@ def main():
                         default_studies,
                         collection,
                         stats,
-                        tmp_base
+                        tmp_base,
+                        no_fhir_mode
                     )
                 )
             for future in as_completed(futures):

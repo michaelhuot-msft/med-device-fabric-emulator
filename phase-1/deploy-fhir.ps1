@@ -23,7 +23,8 @@ param (
     [switch]$SkipDicom,
     [switch]$RunDicom,
     [switch]$UseCachedSynthea,
-    [hashtable]$Tags = @{}
+    [hashtable]$Tags = @{},
+    [switch]$SkipFhir
 )
 
 # Determine which steps to run
@@ -32,6 +33,11 @@ $doInfra = -not $selectiveMode -or $InfraOnly
 $doSynthea = -not $selectiveMode -or $RunSynthea
 $doLoader = -not $selectiveMode -or $RunLoader
 $doDicom = (-not $selectiveMode -and -not $SkipDicom) -or $RunDicom
+
+if ($SkipFhir) {
+    $doSynthea = $false
+    $doLoader = $false
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -545,11 +551,16 @@ if (-not $infraExists) {
         }
     }
 
+    $bicepParams = @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", "location=$Location", "--parameters", $tagsParamRef)
+    if ($SkipFhir) {
+        $bicepParams += @("--parameters", "deployFhirService=false")
+    }
+
     $fhirInfra = Invoke-ArmGroupDeployment `
         -ResourceGroup $ResourceGroupName `
         -DeploymentName "fhir-infra" `
         -TemplateFile "bicep/fhir-infra.bicep" `
-        -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", "location=$Location", "--parameters", $tagsParamRef) `
+        -ParameterArgs $bicepParams `
         -Query "properties.outputs" `
         -OnlyShowErrors
 
@@ -579,7 +590,7 @@ if (-not $infraExists) {
                 -ResourceGroup $ResourceGroupName `
                 -DeploymentName "fhir-infra" `
                 -TemplateFile "bicep/fhir-infra.bicep" `
-                -ParameterArgs @("--parameters", "adminGroupObjectId=$adminGroupObjectId", "--parameters", "location=$Location", "--parameters", $tagsParamRef) `
+                -ParameterArgs $bicepParams `
                 -Query "properties.outputs" `
                 -OnlyShowErrors
             if ($LASTEXITCODE -ne 0) {
