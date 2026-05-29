@@ -2691,12 +2691,15 @@ if (-not $Teardown) {
             Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Notebooks" -ItemTypes @("Notebook")
             
             # 2. Move Pipelines
-            Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "pipelines" -ItemTypes @("DataPipeline")
+            Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Pipelines" -ItemTypes @("DataPipeline")
             
-            # 3. Move Reports & Semantic Models
-            Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Reports and Semantic Models" -ItemTypes @("KQLDashboard", "Report", "SemanticModel")
+            # 3. Move Reports & Semantic Models (Power BI)
+            Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Reports and Semantic Models" -ItemTypes @("Report", "SemanticModel")
             
-            # 4. Move Data Agents
+            # 4. Move Real-Time (Dashboards, Eventstreams, Activators)
+            Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Real-Time" -ItemTypes @("KQLDashboard", "Eventstream", "Reflex")
+            
+            # 5. Move Data Agents
             Move-FabricItemsToFolder -FabricWorkspaceName $FabricWorkspaceName -WorkspaceId $pSweepWsId -FolderName "Agents" -ItemTypes @("DataAgent")
         }
     } catch {
