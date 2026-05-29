@@ -341,10 +341,10 @@ if (-not $SkipFabric) {
             }
         }
 
-        # Delete ALL Entra ID app registrations matching the workspace name (handles stale SPs from previous deployments)
-        Write-Host "  Checking for Entra app registrations matching '$FabricWorkspaceName'..." -ForegroundColor Gray
+        # Delete ALL Entra ID app registrations and service principals matching the workspace name (handles stale SPs from previous deployments)
+        Write-Host "  Checking for Entra app registrations and service principals matching '$FabricWorkspaceName'..." -ForegroundColor Cyan
         try {
-            $allApps = az ad app list --display-name $FabricWorkspaceName --query "[].{id:id, appId:appId}" -o json 2>$null | ConvertFrom-Json
+            $allApps = @(az ad app list --display-name $FabricWorkspaceName --query "[].{id:id, appId:appId}" -o json 2>$null | ConvertFrom-Json)
             if ($allApps -and $allApps.Count -gt 0) {
                 Write-Host "  Found $($allApps.Count) app registration(s) to delete" -ForegroundColor Gray
                 foreach ($app in $allApps) {
@@ -352,14 +352,33 @@ if (-not $SkipFabric) {
                         az ad app delete --id $app.id 2>$null | Out-Null
                         Write-Host "  ✓ Deleted app registration: $($app.id) (appId: $($app.appId))" -ForegroundColor Green
                     } catch {
-                        Write-Host "  ⚠ Could not delete app $($app.id): $($_.Exception.Message)" -ForegroundColor Yellow
+                        Write-Host "  ⚠ Could not delete app registration $($app.id): $($_.Exception.Message)" -ForegroundColor Yellow
                     }
                 }
             } else {
                 Write-Host "  No matching app registrations found." -ForegroundColor DarkGray
             }
         } catch {
-            Write-Host "  ⚠ Could not list app registrations: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  ⚠ Could not list/delete app registrations: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+
+        try {
+            $allSPs = @(az ad sp list --display-name $FabricWorkspaceName --query "[].{id:id, appId:appId}" -o json 2>$null | ConvertFrom-Json)
+            if ($allSPs -and $allSPs.Count -gt 0) {
+                Write-Host "  Found $($allSPs.Count) service principal(s) to delete" -ForegroundColor Gray
+                foreach ($sp in $allSPs) {
+                    try {
+                        az ad sp delete --id $sp.id 2>$null | Out-Null
+                        Write-Host "  ✓ Deleted service principal: $($sp.id) (appId: $($sp.appId))" -ForegroundColor Green
+                    } catch {
+                        Write-Host "  ⚠ Could not delete service principal $($sp.id): $($_.Exception.Message)" -ForegroundColor Yellow
+                    }
+                }
+            } else {
+                Write-Host "  No matching service principals found." -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Host "  ⚠ Could not list/delete service principals: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     } else {
         Write-Host "  Workspace not found — skipping identity deprovision." -ForegroundColor DarkGray

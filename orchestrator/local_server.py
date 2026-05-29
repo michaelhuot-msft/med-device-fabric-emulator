@@ -586,6 +586,64 @@ async def _run_teardown(instance_id: str, req: TeardownRequest):
                         log("success", "✓ Workspace managed identity deprovisioned")
                     else:
                         log("warn", f"Identity deprovision skipped/failed: {result['identity_error']}")
+
+                    # Delete matching Entra ID app registrations and service principals to prevent orphans
+                    log("info", f"Checking for Entra app registrations matching '{req.fabric_workspace_name}'...")
+                    try:
+                        proc_apps = _az_run([
+                            "az", "ad", "app", "list",
+                            "--display-name", req.fabric_workspace_name,
+                            "--query", "[].{id:id, appId:appId}",
+                            "-o", "json"
+                        ])
+                        if proc_apps.returncode == 0 and proc_apps.stdout.strip():
+                            import json
+                            apps = json.loads(proc_apps.stdout)
+                            if apps:
+                                log("info", f"Found {len(apps)} matching Entra app registration(s)")
+                                for app in apps:
+                                    app_id = app.get("id")
+                                    if app_id:
+                                        del_proc = _az_run(["az", "ad", "app", "delete", "--id", app_id])
+                                        if del_proc.returncode == 0:
+                                            log("success", f"✓ Deleted Entra app registration: {app_id}")
+                                        else:
+                                            log("warn", f"Could not delete Entra app registration {app_id}: {del_proc.stderr.strip()}")
+                            else:
+                                log("info", "No matching Entra app registrations found")
+                        else:
+                            log("info", "No matching Entra app registrations found")
+                    except Exception as ex:
+                        log("warn", f"Failed to clean up Entra app registrations: {ex}")
+
+                    log("info", f"Checking for Entra service principals matching '{req.fabric_workspace_name}'...")
+                    try:
+                        proc_sps = _az_run([
+                            "az", "ad", "sp", "list",
+                            "--display-name", req.fabric_workspace_name,
+                            "--query", "[].{id:id, appId:appId}",
+                            "-o", "json"
+                        ])
+                        if proc_sps.returncode == 0 and proc_sps.stdout.strip():
+                            import json
+                            sps = json.loads(proc_sps.stdout)
+                            if sps:
+                                log("info", f"Found {len(sps)} matching Entra service principal(s)")
+                                for sp in sps:
+                                    sp_id = sp.get("id")
+                                    if sp_id:
+                                        del_proc = _az_run(["az", "ad", "sp", "delete", "--id", sp_id])
+                                        if del_proc.returncode == 0:
+                                            log("success", f"✓ Deleted Entra service principal: {sp_id}")
+                                        else:
+                                            log("warn", f"Could not delete Entra service principal {sp_id}: {del_proc.stderr.strip()}")
+                            else:
+                                log("info", "No matching Entra service principals found")
+                        else:
+                            log("info", "No matching Entra service principals found")
+                    except Exception as ex:
+                        log("warn", f"Failed to clean up Entra service principals: {ex}")
+
                     complete_phase("Workspace Identity")
 
                     add_phase("Delete Workspace")

@@ -88,19 +88,46 @@ try {
     }
 }
 
-# ── Delete Entra app registration (created by workspace identity) ──
-Write-Host "Checking for Entra app registration '$FabricWorkspaceName'..." -ForegroundColor Cyan
+# ── Delete Entra app registration and service principal (created by workspace identity) ──
+Write-Host "Checking for Entra app registrations and service principals matching '$FabricWorkspaceName'..." -ForegroundColor Cyan
 try {
-    $appId = az ad app list --display-name $FabricWorkspaceName --query "[0].id" -o tsv 2>$null
-    if ($appId) {
-        az ad app delete --id $appId 2>$null | Out-Null
-        Write-Host "  ✓ Entra app registration deleted." -ForegroundColor Green
+    $allApps = @(az ad app list --display-name $FabricWorkspaceName --query "[].{id:id, appId:appId}" -o json 2>$null | ConvertFrom-Json)
+    if ($allApps -and $allApps.Count -gt 0) {
+        Write-Host "  Found $($allApps.Count) app registration(s) to delete" -ForegroundColor Gray
+        foreach ($app in $allApps) {
+            try {
+                az ad app delete --id $app.id 2>$null | Out-Null
+                Write-Host "  ✓ Deleted app registration: $($app.id) (appId: $($app.appId))" -ForegroundColor Green
+            } catch {
+                Write-Host "  ⚠ Could not delete app registration $($app.id): $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
     } else {
-        Write-Host "  No matching app registration found." -ForegroundColor DarkGray
+        Write-Host "  No matching app registrations found." -ForegroundColor DarkGray
     }
 } catch {
-    Write-Host "  ⚠ Could not delete app registration: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  ⚠ Could not list/delete app registrations: $($_.Exception.Message)" -ForegroundColor Yellow
 }
+
+try {
+    $allSPs = @(az ad sp list --display-name $FabricWorkspaceName --query "[].{id:id, appId:appId}" -o json 2>$null | ConvertFrom-Json)
+    if ($allSPs -and $allSPs.Count -gt 0) {
+        Write-Host "  Found $($allSPs.Count) service principal(s) to delete" -ForegroundColor Gray
+        foreach ($sp in $allSPs) {
+            try {
+                az ad sp delete --id $sp.id 2>$null | Out-Null
+                Write-Host "  ✓ Deleted service principal: $($sp.id) (appId: $($sp.appId))" -ForegroundColor Green
+            } catch {
+                Write-Host "  ⚠ Could not delete service principal $($sp.id): $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "  No matching service principals found." -ForegroundColor DarkGray
+    }
+} catch {
+    Write-Host "  ⚠ Could not list/delete service principals: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 
 # ── Delete workspace ──
 Write-Host ""
