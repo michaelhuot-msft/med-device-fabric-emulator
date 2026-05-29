@@ -15,6 +15,7 @@ import {
   ShieldTaskRegular,
   WeatherMoonRegular,
   WeatherSunnyRegular,
+  EyeRegular,
 } from "@fluentui/react-icons";
 import { spacing } from "../theme";
 import { useAppState } from "../AppState";
@@ -264,7 +265,7 @@ export function Layout() {
 
   const currentTab =
     location.pathname.startsWith("/monitor")
-      ? "/deploy"
+      ? location.pathname
       : location.pathname.startsWith("/preflight")
         ? "/preflight"
         : location.pathname.startsWith("/deploy")
@@ -364,6 +365,11 @@ export function Layout() {
             <Tab value="/history" icon={<HistoryRegular />}>
               History
             </Tab>
+            {location.pathname.startsWith("/monitor") && (
+              <Tab value={location.pathname} icon={<EyeRegular />}>
+                Run Detail
+              </Tab>
+            )}
             <Tab value="/teardown" icon={<DeleteRegular />}>
               Teardown
             </Tab>
