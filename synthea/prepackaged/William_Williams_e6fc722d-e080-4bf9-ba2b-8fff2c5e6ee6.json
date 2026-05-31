@@ -1,0 +1,312 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Williams",
+            "given": [
+              "William"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1992-12-27",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "4777 Peachtree St NE"
+            ],
+            "city": "Atlanta",
+            "state": "GA",
+            "postalCode": "30309",
+            "country": "US"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "fe23b695-34a2-4eec-a097-c2f619be2e00",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ]
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999810000"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/emory-university-hospital",
+          "display": "Emory University Hospital"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location?identifier=http://example.org/location-ids|loc-emory-university-hospital",
+              "display": "Location Emory University Hospital"
+            },
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:e4454eb4-5d02-495e-80a2-68d15553f237",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "e4454eb4-5d02-495e-80a2-68d15553f237",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "84114007",
+              "display": "Heart failure"
+            }
+          ],
+          "text": "Heart failure"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "recordedDate": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:3a6a192b-e3d1-407e-9676-e23fb87bd845",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "3a6a192b-e3d1-407e-9676-e23fb87bd845",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "Oxygen saturation"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 96.1,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:a6b82b8d-9fcc-47db-a139-b1d2a2418707",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "a6b82b8d-9fcc-47db-a139-b1d2a2418707",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart rate"
+            }
+          ],
+          "text": "Heart rate"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 66.0,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:6e778b67-ec11-48c9-b5de-b577d046e7fa",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "6e778b67-ec11-48c9-b5de-b577d046e7fa",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            }
+          ],
+          "text": "Systolic blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 121.1,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:228820fd-df06-40ed-aa22-d5ee45593284",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "228820fd-df06-40ed-aa22-d5ee45593284",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "313226",
+              "display": "Albuterol 0.09 MG/ACTUAT Inhalant Powder"
+            }
+          ],
+          "text": "Albuterol 0.09 MG/ACTUAT Inhalant Powder"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "authoredOn": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:cdbf49b5-f159-4403-a7c6-6c5299d5bafb",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "cdbf49b5-f159-4403-a7c6-6c5299d5bafb",
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "43075005",
+              "display": "Inhalation therapy"
+            }
+          ],
+          "text": "Inhalation therapy"
+        },
+        "subject": {
+          "reference": "urn:uuid:e6fc722d-e080-4bf9-ba2b-8fff2c5e6ee6"
+        },
+        "encounter": {
+          "reference": "urn:uuid:fe23b695-34a2-4eec-a097-c2f619be2e00"
+        },
+        "performedDateTime": "2026-05-29T14:44:48Z"
+      }
+    }
+  ]
+}

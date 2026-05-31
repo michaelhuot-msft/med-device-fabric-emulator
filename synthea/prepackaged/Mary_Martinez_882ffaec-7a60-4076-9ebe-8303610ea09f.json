@@ -1,0 +1,312 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "882ffaec-7a60-4076-9ebe-8303610ea09f",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Martinez",
+            "given": [
+              "Mary"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1991-09-09",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "9710 Peachtree St NE"
+            ],
+            "city": "Atlanta",
+            "state": "GA",
+            "postalCode": "30309",
+            "country": "US"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "52a1a6af-081b-425c-b635-97b84355def7",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ]
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999810008"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/emory-university-hospital",
+          "display": "Emory University Hospital"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location?identifier=http://example.org/location-ids|loc-emory-university-hospital",
+              "display": "Location Emory University Hospital"
+            },
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:d54ec2d4-b0fd-404e-bc18-6d3ab3b54693",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "d54ec2d4-b0fd-404e-bc18-6d3ab3b54693",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "59621000",
+              "display": "Essential hypertension"
+            }
+          ],
+          "text": "Essential hypertension"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "recordedDate": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:d35e8460-4f0a-43eb-a9fc-c59e7194a06e",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "d35e8460-4f0a-43eb-a9fc-c59e7194a06e",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "Oxygen saturation"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 94.0,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:39c62f50-62f0-43bb-9af1-513d6d3f4d7f",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "39c62f50-62f0-43bb-9af1-513d6d3f4d7f",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart rate"
+            }
+          ],
+          "text": "Heart rate"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 60.8,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:1341175e-b671-44b7-8d58-8035e690e668",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "1341175e-b671-44b7-8d58-8035e690e668",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            }
+          ],
+          "text": "Systolic blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 137.8,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:9a4178bb-4b00-4549-b64e-ee9895a8850c",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "9a4178bb-4b00-4549-b64e-ee9895a8850c",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "866514",
+              "display": "Metoprolol succinate 50 MG G Ext-Release Oral Tablet"
+            }
+          ],
+          "text": "Metoprolol succinate 50 MG G Ext-Release Oral Tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "authoredOn": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:8a0d6572-3f39-4a10-8df1-1d005e47f92e",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "8a0d6572-3f39-4a10-8df1-1d005e47f92e",
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "182764009",
+              "display": "Systemic arterial blood pressure measurement"
+            }
+          ],
+          "text": "Systemic arterial blood pressure measurement"
+        },
+        "subject": {
+          "reference": "urn:uuid:882ffaec-7a60-4076-9ebe-8303610ea09f"
+        },
+        "encounter": {
+          "reference": "urn:uuid:52a1a6af-081b-425c-b635-97b84355def7"
+        },
+        "performedDateTime": "2026-05-29T14:44:48Z"
+      }
+    }
+  ]
+}

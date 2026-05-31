@@ -27,7 +27,10 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $ScriptDir "orchestrator"
 $FrontendDir = Join-Path $ScriptDir "orchestrator-ui"
-$VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
+$VenvPython = Join-Path $BackendDir ".venv/bin/python"
+if (-not (Test-Path $VenvPython)) {
+    $VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
+}
 $BackendScript = Join-Path $BackendDir "local_server.py"
 $BackendPort = 7071
 $FrontendPort = 5173
@@ -45,13 +48,35 @@ function Write-Banner {
 
 function Get-PortProcess {
     param([int]$Port)
-    $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
-        Where-Object { $_.OwningProcess -ne 0 -and $_.State -eq "Listen" }
-    if ($conns) {
-        $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-        foreach ($procId in $procIds) {
-            Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($IsWindows) {
+        $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
+            Where-Object { $_.OwningProcess -ne 0 -and $_.State -eq "Listen" }
+        if ($conns) {
+            $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+            foreach ($procId in $procIds) {
+                Get-Process -Id $procId -ErrorAction SilentlyContinue
+            }
         }
+    } else {
+        $pidStr = (lsof -t -i :$Port -s TCP:LISTEN 2>/dev/null)
+        if ($pidStr) {
+            $pids = $pidStr -split "\n" | Where-Object { $_ -match '^\d+$' }
+            foreach ($pId in $pids) {
+                Get-Process -Id ([int]$pId) -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
+function Test-PortListening {
+    param([int]$Port)
+    if ($IsWindows) {
+        $conn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
+            Where-Object { $_.State -eq "Listen" }
+        return $conn -ne $null
+    } else {
+        $lsofOut = (lsof -i :$Port -s TCP:LISTEN 2>/dev/null)
+        return -not [string]::IsNullOrEmpty($lsofOut)
     }
 }
 
@@ -160,9 +185,8 @@ $backendReady = $false
 while ($waited -lt 10) {
     Start-Sleep -Milliseconds 500
     $waited += 0.5
-    $listener = Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue |
-        Where-Object { $_.State -eq "Listen" }
-    if ($listener) {
+    $isListening = Test-PortListening -Port $BackendPort
+    if ($isListening) {
         $backendReady = $true
         break
     }
@@ -184,7 +208,8 @@ if ($backendReady) {
 
 Write-Host "  Starting frontend (port $FrontendPort)..." -ForegroundColor White
 
-$frontendProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c","npm","run","dev" `
+$npmExe = if ($IsWindows) { "npm.cmd" } else { "npm" }
+$frontendProc = Start-Process -FilePath $npmExe -ArgumentList "run","dev" `
     -WorkingDirectory $FrontendDir -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $FrontendDir "frontend-stdout.log") `
     -RedirectStandardError (Join-Path $FrontendDir "frontend-stderr.log")
@@ -195,9 +220,8 @@ $frontendReady = $false
 while ($waited -lt 15) {
     Start-Sleep -Milliseconds 500
     $waited += 0.5
-    $listener = Get-NetTCPConnection -LocalPort $FrontendPort -ErrorAction SilentlyContinue |
-        Where-Object { $_.State -eq "Listen" }
-    if ($listener) {
+    $isListening = Test-PortListening -Port $FrontendPort
+    if ($isListening) {
         $frontendReady = $true
         break
     }

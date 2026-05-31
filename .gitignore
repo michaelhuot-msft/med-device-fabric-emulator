@@ -13,6 +13,16 @@ _dicom_logs.txt
 
 # AI planning / private content
 .ai/youtube-script.md
+*youtube-script*.md
+*youtube_script*.md
+*video-script*.md
+*video_script*.md
+video-scripts/
+youtube-scripts/
+**/*video_script*
+**/*video-script*
+**/*youtube_script*
+**/*youtube-script*
 eh-test.json
 orchestrator/orchestrator.log
 orchestrator/logs/

@@ -1,0 +1,312 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "ab49c583-f606-41b1-b77b-0f69a73f68c9",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Davis",
+            "given": [
+              "Patricia"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1989-10-26",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "2820 Peachtree St NE"
+            ],
+            "city": "Atlanta",
+            "state": "GA",
+            "postalCode": "30309",
+            "country": "US"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "f6126b38-6da0-4b10-a45d-1d183a835ed1",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ]
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999810004"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/wellstar-kennestone-hospital",
+          "display": "Wellstar Kennestone Hospital"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location?identifier=http://example.org/location-ids|loc-wellstar-kennestone-hospital",
+              "display": "Location Wellstar Kennestone Hospital"
+            },
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b8520f45-e8be-4d14-803f-bc6296d53cbc",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "b8520f45-e8be-4d14-803f-bc6296d53cbc",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "84114007",
+              "display": "Heart failure"
+            }
+          ],
+          "text": "Heart failure"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "recordedDate": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:ca36d774-b043-43a4-a0f8-98753ae4a650",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "ca36d774-b043-43a4-a0f8-98753ae4a650",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "Oxygen saturation"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 94.2,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:e5871877-00e1-4481-805c-602031e78ea1",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "e5871877-00e1-4481-805c-602031e78ea1",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart rate"
+            }
+          ],
+          "text": "Heart rate"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 79.0,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:50c4d2be-fb9b-4cc2-9f32-3204b60efd2c",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "50c4d2be-fb9b-4cc2-9f32-3204b60efd2c",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            }
+          ],
+          "text": "Systolic blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 124.5,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:7edfdc45-e21c-4a87-8dc4-1834ab2d632a",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "7edfdc45-e21c-4a87-8dc4-1834ab2d632a",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "310963",
+              "display": "Fluticasone propionate 0.044 MG/ACTUAT Inhalant Suspension"
+            }
+          ],
+          "text": "Fluticasone propionate 0.044 MG/ACTUAT Inhalant Suspension"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "authoredOn": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:46ddb9b4-ee5e-4989-a29c-5c5cce34bf03",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "46ddb9b4-ee5e-4989-a29c-5c5cce34bf03",
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "182764009",
+              "display": "Systemic arterial blood pressure measurement"
+            }
+          ],
+          "text": "Systemic arterial blood pressure measurement"
+        },
+        "subject": {
+          "reference": "urn:uuid:ab49c583-f606-41b1-b77b-0f69a73f68c9"
+        },
+        "encounter": {
+          "reference": "urn:uuid:f6126b38-6da0-4b10-a45d-1d183a835ed1"
+        },
+        "performedDateTime": "2026-05-29T14:44:48Z"
+      }
+    }
+  ]
+}

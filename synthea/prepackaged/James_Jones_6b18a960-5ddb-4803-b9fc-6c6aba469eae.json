@@ -1,0 +1,312 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "6b18a960-5ddb-4803-b9fc-6c6aba469eae",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Jones",
+            "given": [
+              "James"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "2015-10-18",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "2396 Peachtree St NE"
+            ],
+            "city": "Atlanta",
+            "state": "GA",
+            "postalCode": "30309",
+            "country": "US"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "5fb9ee22-a458-410c-bc43-c2497b963e85",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ]
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999810006"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/choa-scottish-rite",
+          "display": "Choa Scottish Rite"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location?identifier=http://example.org/location-ids|loc-choa-scottish-rite",
+              "display": "Location Choa Scottish Rite"
+            },
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:e98e3ca0-5b2a-4bc7-a320-b083469ac0ad",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "e98e3ca0-5b2a-4bc7-a320-b083469ac0ad",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "59621000",
+              "display": "Essential hypertension"
+            }
+          ],
+          "text": "Essential hypertension"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "recordedDate": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:af21e348-59f4-432a-aaad-1f781cc8f4d4",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "af21e348-59f4-432a-aaad-1f781cc8f4d4",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "Oxygen saturation"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 97.0,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:c7162b04-188b-487a-9a79-899835d57943",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "c7162b04-188b-487a-9a79-899835d57943",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart rate"
+            }
+          ],
+          "text": "Heart rate"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 76.1,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b73cdb1e-c537-4c1f-83e0-e7189582db71",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "b73cdb1e-c537-4c1f-83e0-e7189582db71",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            }
+          ],
+          "text": "Systolic blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 120.4,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:8634069b-0e7d-4629-a0ed-87e46dc325c8",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "8634069b-0e7d-4629-a0ed-87e46dc325c8",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "855332",
+              "display": "Lisinopril 10 MG Oral Tablet"
+            }
+          ],
+          "text": "Lisinopril 10 MG Oral Tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "authoredOn": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:4ed0856c-cf6f-46f8-8bd4-c92f597283ea",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "4ed0856c-cf6f-46f8-8bd4-c92f597283ea",
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "3981000175107",
+              "display": "Oxygen administration"
+            }
+          ],
+          "text": "Oxygen administration"
+        },
+        "subject": {
+          "reference": "urn:uuid:6b18a960-5ddb-4803-b9fc-6c6aba469eae"
+        },
+        "encounter": {
+          "reference": "urn:uuid:5fb9ee22-a458-410c-bc43-c2497b963e85"
+        },
+        "performedDateTime": "2026-05-29T14:44:48Z"
+      }
+    }
+  ]
+}

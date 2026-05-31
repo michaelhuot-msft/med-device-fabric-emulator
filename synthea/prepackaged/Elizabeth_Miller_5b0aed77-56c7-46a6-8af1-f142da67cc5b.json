@@ -1,0 +1,312 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "5b0aed77-56c7-46a6-8af1-f142da67cc5b",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Miller",
+            "given": [
+              "Elizabeth"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "2010-03-02",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "957 Peachtree St NE"
+            ],
+            "city": "Atlanta",
+            "state": "GA",
+            "postalCode": "30309",
+            "country": "US"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "002e6435-c7c3-43da-9dfe-a870395fab14",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ]
+              }
+            ],
+            "individual": {
+              "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999810005"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/choa-egleston",
+          "display": "Choa Egleston"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location?identifier=http://example.org/location-ids|loc-choa-egleston",
+              "display": "Location Choa Egleston"
+            },
+            "status": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:8866413d-2a13-40d5-ade6-353d5596e178",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "8866413d-2a13-40d5-ade6-353d5596e178",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "13645005",
+              "display": "Chronic obstructive lung disease"
+            }
+          ],
+          "text": "Chronic obstructive lung disease"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "recordedDate": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:6402c8f2-b56b-41a2-bf82-a4f6a1056dca",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "6402c8f2-b56b-41a2-bf82-a4f6a1056dca",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "Oxygen saturation"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 98.3,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:935a5a17-e266-44d9-a591-81648ae27069",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "935a5a17-e266-44d9-a591-81648ae27069",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart rate"
+            }
+          ],
+          "text": "Heart rate"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 91.0,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:e7865f14-8a97-4049-aaea-d05c989cbb33",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "e7865f14-8a97-4049-aaea-d05c989cbb33",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8480-6",
+              "display": "Systolic blood pressure"
+            }
+          ],
+          "text": "Systolic blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "effectiveDateTime": "2026-05-29T14:44:48Z",
+        "valueQuantity": {
+          "value": 133.4,
+          "unit": "mmHg",
+          "system": "http://unitsofmeasure.org",
+          "code": "mm[Hg]"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:04fe3f57-4622-4fc5-a96b-4dca322abae3",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "04fe3f57-4622-4fc5-a96b-4dca322abae3",
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "197361",
+              "display": "Amlodipine 5 MG Oral Tablet"
+            }
+          ],
+          "text": "Amlodipine 5 MG Oral Tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "authoredOn": "2026-05-29T14:44:48Z"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:28695391-4cdf-4e50-88bb-c59066f986a2",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "28695391-4cdf-4e50-88bb-c59066f986a2",
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "312850006",
+              "display": "History taking"
+            }
+          ],
+          "text": "History taking"
+        },
+        "subject": {
+          "reference": "urn:uuid:5b0aed77-56c7-46a6-8af1-f142da67cc5b"
+        },
+        "encounter": {
+          "reference": "urn:uuid:002e6435-c7c3-43da-9dfe-a870395fab14"
+        },
+        "performedDateTime": "2026-05-29T14:44:48Z"
+      }
+    }
+  ]
+}

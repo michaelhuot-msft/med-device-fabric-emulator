@@ -35,12 +35,22 @@ function Write-Banner {
 
 function Get-PortProcess {
     param([int]$Port)
-    $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
-        Where-Object { $_.OwningProcess -ne 0 -and $_.State -eq "Listen" }
-    if ($conns) {
-        $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-        foreach ($procId in $procIds) {
-            Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($IsWindows) {
+        $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
+            Where-Object { $_.OwningProcess -ne 0 -and $_.State -eq "Listen" }
+        if ($conns) {
+            $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+            foreach ($procId in $procIds) {
+                Get-Process -Id $procId -ErrorAction SilentlyContinue
+            }
+        }
+    } else {
+        $pidStr = (lsof -t -i :$Port -s TCP:LISTEN 2>/dev/null)
+        if ($pidStr) {
+            $pids = $pidStr -split "\n" | Where-Object { $_ -match '^\d+$' }
+            foreach ($pId in $pids) {
+                Get-Process -Id ([int]$pId) -ErrorAction SilentlyContinue
+            }
         }
     }
 }
