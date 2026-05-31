@@ -174,10 +174,14 @@ if ($backendBlocked -or $frontendBlocked) {
 Write-Host ""
 Write-Host "  Starting backend (port $BackendPort)..." -ForegroundColor White
 
-$backendProc = Start-Process -FilePath $VenvPython -ArgumentList $BackendScript `
-    -WorkingDirectory $BackendDir -PassThru -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $BackendDir "backend-stdout.log") `
-    -RedirectStandardError (Join-Path $BackendDir "backend-stderr.log")
+$backendParams = @{
+    WorkingDirectory = $BackendDir
+    PassThru = $true
+    RedirectStandardOutput = (Join-Path $BackendDir "backend-stdout.log")
+    RedirectStandardError = (Join-Path $BackendDir "backend-stderr.log")
+}
+if ($IsWindows) { $backendParams["WindowStyle"] = "Hidden" }
+$backendProc = Start-Process -FilePath $VenvPython -ArgumentList $BackendScript @backendParams
 
 # Wait for backend to come up (max 10 seconds)
 $waited = 0
@@ -209,10 +213,14 @@ if ($backendReady) {
 Write-Host "  Starting frontend (port $FrontendPort)..." -ForegroundColor White
 
 $npmExe = if ($IsWindows) { "npm.cmd" } else { "npm" }
-$frontendProc = Start-Process -FilePath $npmExe -ArgumentList "run","dev" `
-    -WorkingDirectory $FrontendDir -PassThru -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $FrontendDir "frontend-stdout.log") `
-    -RedirectStandardError (Join-Path $FrontendDir "frontend-stderr.log")
+$frontendParams = @{
+    WorkingDirectory = $FrontendDir
+    PassThru = $true
+    RedirectStandardOutput = (Join-Path $FrontendDir "frontend-stdout.log")
+    RedirectStandardError = (Join-Path $FrontendDir "frontend-stderr.log")
+}
+if ($IsWindows) { $frontendParams["WindowStyle"] = "Hidden" }
+$frontendProc = Start-Process -FilePath $npmExe -ArgumentList "run","dev" @frontendParams
 
 # Wait for frontend to come up (max 15 seconds)
 $waited = 0
