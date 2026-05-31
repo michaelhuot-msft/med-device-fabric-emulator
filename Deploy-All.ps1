@@ -984,7 +984,7 @@ if ($Phase4 -and -not $Phase2 -and -not $Phase3) {
 
 Emit-PhaseTransition -Phase 1 -Label "Data Fabric Foundation" -StepCount 6
 
-if (-not $Phase3 -and -not $Phase4 -and -not $SkipFabric) {
+if (-not $Phase3 -and -not $Phase4) {
     Invoke-Step -StepName "Phase 1: Fabric Workspace" `
         -Description "Create workspace '$FabricWorkspaceName' + assign capacity + provision identity" -Action {
 
