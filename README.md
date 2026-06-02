@@ -60,7 +60,7 @@ The entire solution deploys in under 2 hours via the **Orchestrator UI** (browse
 A high-altitude view of the platform — data sources flow through Azure's ingestion layer into Fabric's four phased workloads, and out to the clinical consumers who actually use it.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#8A8886','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#8A8886','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 flowchart LR
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -149,7 +149,7 @@ flowchart LR
     class AZ azureBox
     class FAB fabricBox
     class OUT consumerBox
-    linkStyle default stroke:#605E5C,stroke-width:2.5px
+    linkStyle default stroke:#8A8886,stroke-width:3px
 ```
 
 <details>
@@ -162,7 +162,7 @@ Open [`docs/images/architecture-diagram.drawio`](docs/images/architecture-diagra
 ### End-to-End Data Flow
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#8A8886','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#8A8886','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 flowchart TB
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -266,7 +266,7 @@ flowchart TB
     class P4 phase4
     class P5 phase5
     class P6 phase6
-    linkStyle default stroke:#605E5C,stroke-width:2.5px
+    linkStyle default stroke:#8A8886,stroke-width:3px
 ```
 
 ### Deployment Sequence
@@ -289,7 +289,7 @@ flowchart TB
 ### FHIR Resource Relationships
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130','primaryTextColor':'#201F1E','primaryColor':'#FAF9F8','primaryBorderColor':'#605E5C','attributeBackgroundColorOdd':'#FAF9F8','attributeBackgroundColorEven':'#EDEBE9'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#8A8886','primaryTextColor':'#201F1E','primaryColor':'#FAF9F8','primaryBorderColor':'#605E5C','attributeBackgroundColorOdd':'#FAF9F8','attributeBackgroundColorEven':'#EDEBE9'}}}%%
 erDiagram
     Patient ||--o{ Encounter : "has"
     Patient ||--o{ Condition : "has"
@@ -331,7 +331,7 @@ erDiagram
 ### Fabric IQ Ontology (Semantic Layer)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','primaryTextColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#8A8886','primaryTextColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 graph LR
     Patient -->|has| Encounter
     Patient -->|has| Condition
@@ -350,7 +350,7 @@ graph LR
     style Condition fill:#117865,stroke:#0A4A3E,stroke-width:3px,color:#FFFFFF
     style Observation fill:#7A4F1D,stroke:#3E2810,stroke-width:3px,color:#FFFFFF
     style MedicationRequest fill:#3B5266,stroke:#1F2D3A,stroke-width:3px,color:#FFFFFF
-    linkStyle default stroke:#605E5C,stroke-width:2.5px
+    linkStyle default stroke:#8A8886,stroke-width:3px
 ```
 
 ---
