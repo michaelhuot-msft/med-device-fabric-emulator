@@ -60,7 +60,7 @@ The entire solution deploys in under 2 hours via the **Orchestrator UI** (browse
 A high-altitude view of the platform — data sources flow through Azure's ingestion layer into Fabric's four phased workloads, and out to the clinical consumers who actually use it.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
 flowchart LR
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -158,7 +158,7 @@ Open [`docs/images/architecture-diagram.drawio`](docs/images/architecture-diagra
 ### End-to-End Data Flow
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
 flowchart TB
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -282,7 +282,7 @@ flowchart TB
 ### FHIR Resource Relationships
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130','background':'#F3F2F1','primaryTextColor':'#201F1E','primaryColor':'#FAF9F8','primaryBorderColor':'#605E5C','attributeBackgroundColorOdd':'#FAF9F8','attributeBackgroundColorEven':'#EDEBE9'}}}%%
 erDiagram
     Patient ||--o{ Encounter : "has"
     Patient ||--o{ Condition : "has"
@@ -324,7 +324,7 @@ erDiagram
 ### Fabric IQ Ontology (Semantic Layer)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
 graph LR
     Patient -->|has| Encounter
     Patient -->|has| Condition
