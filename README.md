@@ -60,7 +60,7 @@ The entire solution deploys in under 2 hours via the **Orchestrator UI** (browse
 A high-altitude view of the platform — data sources flow through Azure's ingestion layer into Fabric's four phased workloads, and out to the clinical consumers who actually use it.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 flowchart LR
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -70,6 +70,10 @@ flowchart LR
     classDef phase3 fill:#A4262C,stroke:#5C0F14,stroke-width:3px,color:#FFFFFF
     classDef phase4 fill:#5C2D91,stroke:#32145A,stroke-width:3px,color:#FFFFFF
     classDef consumer fill:#8A6708,stroke:#4A3700,stroke-width:3px,color:#FFFFFF
+    classDef sourcesBox fill:#FAF9F8,stroke:#605E5C,stroke-width:3px,color:#201F1E
+    classDef azureBox fill:#FAF9F8,stroke:#0078D4,stroke-width:3px,color:#201F1E
+    classDef fabricBox fill:#FAF9F8,stroke:#117865,stroke-width:3px,color:#201F1E
+    classDef consumerBox fill:#FAF9F8,stroke:#8A6708,stroke-width:3px,color:#201F1E
 
     subgraph SRC["🌐 Data Sources"]
         direction TB
@@ -141,10 +145,10 @@ flowchart LR
     class F3 phase3
     class F4 phase4
     class C1,C2,C3,C4 consumer
-    class SRC sources
-    class AZ azure
-    class FAB fabric
-    class OUT consumer
+    class SRC sourcesBox
+    class AZ azureBox
+    class FAB fabricBox
+    class OUT consumerBox
     linkStyle default stroke:#605E5C,stroke-width:2.5px
 ```
 
@@ -158,7 +162,7 @@ Open [`docs/images/architecture-diagram.drawio`](docs/images/architecture-diagra
 ### End-to-End Data Flow
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C','primaryTextColor':'#201F1E','clusterBkg':'#FAF9F8','clusterBorder':'#605E5C','titleColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 flowchart TB
     classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
     classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
@@ -169,6 +173,9 @@ flowchart TB
     classDef phase4 fill:#5C2D91,stroke:#32145A,stroke-width:3px,color:#FFFFFF
     classDef phase5 fill:#8A6708,stroke:#4A3700,stroke-width:3px,color:#FFFFFF
     classDef phase6 fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
+    classDef sourcesBox fill:#FAF9F8,stroke:#605E5C,stroke-width:3px,color:#201F1E
+    classDef azureBox fill:#FAF9F8,stroke:#0078D4,stroke-width:3px,color:#201F1E
+    classDef fabricBox fill:#FAF9F8,stroke:#117865,stroke-width:3px,color:#201F1E
 
     subgraph EXT["External Sources"]
         SYNTH["Synthea\n(Patient Generator)"]
@@ -250,9 +257,9 @@ flowchart TB
     class ONT,DA phase4
     class ACT phase5
     class PBI_CMS phase6
-    class EXT sources
-    class AZ,VIEWER azure
-    class FAB fabric
+    class EXT sourcesBox
+    class AZ,VIEWER azureBox
+    class FAB fabricBox
     class P1 phase1
     class P2 phase2
     class P3 phase3
@@ -282,7 +289,7 @@ flowchart TB
 ### FHIR Resource Relationships
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130','background':'#F3F2F1','primaryTextColor':'#201F1E','primaryColor':'#FAF9F8','primaryBorderColor':'#605E5C','attributeBackgroundColorOdd':'#FAF9F8','attributeBackgroundColorEven':'#EDEBE9'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130','primaryTextColor':'#201F1E','primaryColor':'#FAF9F8','primaryBorderColor':'#605E5C','attributeBackgroundColorOdd':'#FAF9F8','attributeBackgroundColorEven':'#EDEBE9'}}}%%
 erDiagram
     Patient ||--o{ Encounter : "has"
     Patient ||--o{ Condition : "has"
@@ -324,7 +331,7 @@ erDiagram
 ### Fabric IQ Ontology (Semantic Layer)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','background':'#F3F2F1','primaryTextColor':'#201F1E','edgeLabelBackground':'#F3F2F1'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C','primaryTextColor':'#201F1E','edgeLabelBackground':'#FAF9F8'}}}%%
 graph LR
     Patient -->|has| Encounter
     Patient -->|has| Condition
