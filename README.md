@@ -60,15 +60,16 @@ The entire solution deploys in under 2 hours via the **Orchestrator UI** (browse
 A high-altitude view of the platform — data sources flow through Azure's ingestion layer into Fabric's four phased workloads, and out to the clinical consumers who actually use it.
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C'}}}%%
 flowchart LR
-    classDef sources fill:#f5f5f5,stroke:#888,stroke-width:1px,color:#333
-    classDef azure fill:#E5F1FB,stroke:#0078D4,stroke-width:2px,color:#004578
-    classDef fabric fill:#E0F2F1,stroke:#117865,stroke-width:2px,color:#0A4A3E
-    classDef phase1 fill:#FFF4E5,stroke:#FF8C00,stroke-width:1.5px,color:#663300
-    classDef phase2 fill:#E8F8E8,stroke:#107C10,stroke-width:1.5px,color:#0B4D0B
-    classDef phase3 fill:#FDE7E9,stroke:#D13438,stroke-width:1.5px,color:#7A1F22
-    classDef phase4 fill:#E8E8FF,stroke:#5C2D91,stroke-width:1.5px,color:#2E1757
-    classDef consumer fill:#FFFCE5,stroke:#B89229,stroke-width:1.5px,color:#5C4615
+    classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
+    classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
+    classDef fabric fill:#117865,stroke:#0A4A3E,stroke-width:3px,color:#FFFFFF
+    classDef phase1 fill:#D83B01,stroke:#8A2400,stroke-width:3px,color:#FFFFFF
+    classDef phase2 fill:#107C10,stroke:#054B05,stroke-width:3px,color:#FFFFFF
+    classDef phase3 fill:#A4262C,stroke:#5C0F14,stroke-width:3px,color:#FFFFFF
+    classDef phase4 fill:#5C2D91,stroke:#32145A,stroke-width:3px,color:#FFFFFF
+    classDef consumer fill:#8A6708,stroke:#4A3700,stroke-width:3px,color:#FFFFFF
 
     subgraph SRC["🌐 Data Sources"]
         direction TB
@@ -144,6 +145,7 @@ flowchart LR
     class AZ azure
     class FAB fabric
     class OUT consumer
+    linkStyle default stroke:#605E5C,stroke-width:2.5px
 ```
 
 <details>
@@ -156,7 +158,18 @@ Open [`docs/images/architecture-diagram.drawio`](docs/images/architecture-diagra
 ### End-to-End Data Flow
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'13px','lineColor':'#605E5C'}}}%%
 flowchart TB
+    classDef sources fill:#605E5C,stroke:#323130,stroke-width:3px,color:#FFFFFF
+    classDef azure fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
+    classDef fabric fill:#117865,stroke:#0A4A3E,stroke-width:3px,color:#FFFFFF
+    classDef phase1 fill:#D83B01,stroke:#8A2400,stroke-width:3px,color:#FFFFFF
+    classDef phase2 fill:#107C10,stroke:#054B05,stroke-width:3px,color:#FFFFFF
+    classDef phase3 fill:#A4262C,stroke:#5C0F14,stroke-width:3px,color:#FFFFFF
+    classDef phase4 fill:#5C2D91,stroke:#32145A,stroke-width:3px,color:#FFFFFF
+    classDef phase5 fill:#8A6708,stroke:#4A3700,stroke-width:3px,color:#FFFFFF
+    classDef phase6 fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
+
     subgraph EXT["External Sources"]
         SYNTH["Synthea\n(Patient Generator)"]
         TCIA["TCIA\n(Public DICOM)"]
@@ -229,16 +242,24 @@ flowchart TB
     EVH --> ACT
     SLV -.-> PBI_CMS
 
-    style EXT fill:#f5f5f5,stroke:#999,stroke-dasharray:5
-    style AZ fill:#e6f3ff,stroke:#0078d4,stroke-width:2px
-    style FAB fill:#f0e6ff,stroke:#8000d4,stroke-width:2px
-    style VIEWER fill:#e6f3ff,stroke:#0078d4,stroke-width:2px
-    style P1 fill:#FFF4E5,stroke:#FF8C00,stroke-width:1.5px
-    style P2 fill:#E2F0D9,stroke:#385723,stroke-width:1.5px
-    style P3 fill:#FDE7E9,stroke:#D13438,stroke-width:1.5px
-    style P4 fill:#E8E8FF,stroke:#5C2D91,stroke-width:1.5px
-    style P5 fill:#FFF2CC,stroke:#D6B656,stroke-width:1.5px
-    style P6 fill:#E1F5FE,stroke:#0288D1,stroke-width:1.5px
+    class SYNTH,TCIA,EMUL sources
+    class EH,FHIR_SVC,DICOM_SVC,ADLS,ACR,OHIF azure
+    class BZ,SLV,GOLD,SC phase1
+    class ES,EVH,DASH1,MAP phase2
+    class RPT,PBI,COHORT phase3
+    class ONT,DA phase4
+    class ACT phase5
+    class PBI_CMS phase6
+    class EXT sources
+    class AZ,VIEWER azure
+    class FAB fabric
+    class P1 phase1
+    class P2 phase2
+    class P3 phase3
+    class P4 phase4
+    class P5 phase5
+    class P6 phase6
+    linkStyle default stroke:#605E5C,stroke-width:2.5px
 ```
 
 ### Deployment Sequence
@@ -261,6 +282,7 @@ flowchart TB
 ### FHIR Resource Relationships
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#323130'}}}%%
 erDiagram
     Patient ||--o{ Encounter : "has"
     Patient ||--o{ Condition : "has"
@@ -302,6 +324,7 @@ erDiagram
 ### Fabric IQ Ontology (Semantic Layer)
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'14px','lineColor':'#605E5C'}}}%%
 graph LR
     Patient -->|has| Encounter
     Patient -->|has| Condition
@@ -312,14 +335,15 @@ graph LR
     Device -->|triggers| ClinicalAlert
     ClinicalAlert -->|concerns| Patient
 
-    style Patient fill:#4CAF50,color:#fff
-    style Device fill:#2196F3,color:#fff
-    style DeviceTelemetry fill:#FF9800,color:#fff
-    style ClinicalAlert fill:#f44336,color:#fff
-    style Encounter fill:#9C27B0,color:#fff
-    style Condition fill:#009688,color:#fff
-    style Observation fill:#795548,color:#fff
-    style MedicationRequest fill:#607D8B,color:#fff
+    style Patient fill:#107C10,stroke:#054B05,stroke-width:3px,color:#FFFFFF
+    style Device fill:#0078D4,stroke:#004578,stroke-width:3px,color:#FFFFFF
+    style DeviceTelemetry fill:#D83B01,stroke:#8A2400,stroke-width:3px,color:#FFFFFF
+    style ClinicalAlert fill:#A4262C,stroke:#5C0F14,stroke-width:3px,color:#FFFFFF
+    style Encounter fill:#5C2D91,stroke:#32145A,stroke-width:3px,color:#FFFFFF
+    style Condition fill:#117865,stroke:#0A4A3E,stroke-width:3px,color:#FFFFFF
+    style Observation fill:#7A4F1D,stroke:#3E2810,stroke-width:3px,color:#FFFFFF
+    style MedicationRequest fill:#3B5266,stroke:#1F2D3A,stroke-width:3px,color:#FFFFFF
+    linkStyle default stroke:#605E5C,stroke-width:2.5px
 ```
 
 ---
